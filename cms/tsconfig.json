@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "nodenext",
+    "module": "NodeNext",
+    "target": "ES2021",
+    "checkJs": false,
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "noEmit": true,
+    "outDir": "."
+  },
+  "exclude": ["node_modules"]
+}

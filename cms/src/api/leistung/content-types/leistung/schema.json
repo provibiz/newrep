@@ -1,0 +1,52 @@
+{
+  "kind": "collectionType",
+  "collectionName": "leistungen",
+  "info": {
+    "singularName": "leistung",
+    "pluralName": "leistungen",
+    "displayName": "Leistung",
+    "description": "Angebotene Reinigungsleistungen"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "titel": {
+      "type": "string",
+      "required": true
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "titel",
+      "required": true
+    },
+    "icon_name": {
+      "type": "enumeration",
+      "enum": [
+        "sparkle",
+        "broom",
+        "building",
+        "window",
+        "key",
+        "stairs",
+        "school",
+        "medical"
+      ],
+      "default": "sparkle",
+      "required": true
+    },
+    "kurzbeschreibung": {
+      "type": "text",
+      "required": true,
+      "maxLength": 160
+    },
+    "haupttext": {
+      "type": "richtext"
+    },
+    "reihenfolge": {
+      "type": "integer",
+      "default": 1
+    }
+  }
+}
