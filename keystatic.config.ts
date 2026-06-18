@@ -2,11 +2,10 @@ import { config, fields, singleton, collection } from '@keystatic/core';
 
 export default config({
 	storage: {
-		kind: 'github',
-		repo: {
-			owner: 'provibiz',
-			name: 'newrep',
-		},
+		kind: 'cloud',
+	},
+	cloud: {
+		project: 'provibiz/newrep',
 	},
 	singletons: {
 		startseite: singleton({
