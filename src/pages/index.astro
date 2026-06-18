@@ -1,64 +1,48 @@
 ---
-const phoneNumber = "+49 7531 123456";
-const phoneHref = "tel:+497531123456";
-const whatsappHref = "https://wa.me/497531123456";
-const email = "info@gso-gebaeudeservice.de";
+export const prerender = true;
+
+import { createReader } from "@keystatic/core/reader";
+import Markdoc from "@markdoc/markdoc";
+import keystaticConfig from "../../keystatic.config";
+
+const reader = createReader(process.cwd(), keystaticConfig);
+
+const startseite = await reader.singletons.startseite.read();
+if (!startseite) {
+  throw new Error(
+    'Singleton "Startseite" wurde nicht gefunden. Bitte unter /keystatic anlegen.'
+  );
+}
+
+const { node: ueberUnsNode } = await startseite.ueber_uns_text();
+const ueberUnsHtml = Markdoc.renderers.html(Markdoc.transform(ueberUnsNode));
+
+const phoneNumber = startseite.telefonnummer;
+const phoneHref = `tel:${phoneNumber.replace(/[^\d+]/g, "")}`;
+const whatsappHref = `https://wa.me/${phoneNumber.replace(/[^\d]/g, "")}`;
+const email = startseite.email;
+
+const headlineParts = startseite.hero_headline.split(". ").filter(Boolean);
+const headlineFirst = headlineParts[0] ?? startseite.hero_headline;
+const headlineRest = headlineParts.slice(1).join(". ");
+
+const leistungenSlugs = await reader.collections.leistungen.list();
+const leistungenEntries = await Promise.all(
+  leistungenSlugs.map((slug) => reader.collections.leistungen.read(slug))
+);
+const services = leistungenEntries
+  .map((entry) => ({
+    title: entry!.titel,
+    description: entry!.kurzbeschreibung,
+    icon: entry!.icon_name,
+    reihenfolge: entry!.reihenfolge ?? 0,
+  }))
+  .sort((a, b) => a.reihenfolge - b.reihenfolge);
 
 const stats = [
   { value: "15+", label: "Jahre Erfahrung" },
   { value: "100%", label: "geschult & versichert" },
   { value: "24h", label: "Antwortzeit" },
-];
-
-const services = [
-  {
-    title: "Intensive Grundreinigung",
-    description:
-      "Tiefenreinigung für besonders gründliche Sauberkeit – hartnäckiger Schmutz, Kalk und Ablagerungen werden nachhaltig entfernt.",
-    icon: "sparkle",
-  },
-  {
-    title: "Glasreinigung, Fenster & Jalousien",
-    description:
-      "Innen, außen, Rahmen und Falz – streifenfreie Fenster und Glasflächen jeder Größe, von Schaufenstern bis Fassaden.",
-    icon: "window",
-  },
-  {
-    title: "Unterhaltsreinigung",
-    description:
-      "Regelmäßige, wiederkehrende Reinigung für Geschäftsräume und Privathaushalte – täglich, wöchentlich oder monatlich.",
-    icon: "broom",
-  },
-  {
-    title: "Büro & Arbeitsplatz",
-    description:
-      "Tägliche oder wöchentliche Reinigung von Büros, Konferenzräumen, Küchen und Sanitärbereichen für hygienisches Arbeiten.",
-    icon: "building",
-  },
-  {
-    title: "Treppenhausreinigung",
-    description:
-      "Saubere und sichere Treppenhäuser in Wohn- und Geschäftsobjekten – regelmäßig und gewissenhaft.",
-    icon: "stairs",
-  },
-  {
-    title: "Schulen & Kindergarten",
-    description:
-      "Hygiene-Reinigung für Klassenzimmer, Turnhallen, Sanitärbereiche und Küchen – kindgerecht und umweltfreundlich.",
-    icon: "school",
-  },
-  {
-    title: "Praxis & Krankenhaus",
-    description:
-      "Medizinische Reinigung und Desinfektion auf höchstem Hygieneniveau – für Arztpraxen, Kliniken und Pflegeeinrichtungen.",
-    icon: "medical",
-  },
-  {
-    title: "Hotelreinigung & Gewerbe",
-    description:
-      "Maßgeschneiderte Reinigung für Hotels und Gewerbeobjekte – inklusive Teppich-, Polster- und Fensterreinigung.",
-    icon: "key",
-  },
 ];
 
 const whyUs = [
@@ -151,11 +135,8 @@ function iconSvg(name: string): string {
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<title>GSO Gebäudeservice – Gebäudereinigung in Konstanz</title>
-		<meta
-			name="description"
-			content="GSO Gebäudeservice ist Ihr zuverlässiger Partner für professionelle Gebäudereinigung in Konstanz und am Bodensee. Grundreinigung, Unterhaltsreinigung, Büro-, Fenster- und Gewerbereinigung."
-		/>
+		<title>{startseite.meta_title}</title>
+		<meta name="description" content={startseite.meta_description} />
 		<meta name="generator" content={Astro.generator} />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -201,18 +182,19 @@ function iconSvg(name: string): string {
 							<span class="badge-icon" set:html={iconSvg("pin")} />
 							Region Konstanz &middot; Bodensee
 						</span>
-						<h1>Saubere Räume.<br /><span class="text-mint">Klarer Kopf.</span></h1>
-						<p class="hero-sub">
-							Professionelle Gebäudereinigung für Privat und Gewerbe – gründlich,
-							zuverlässig und preiswert. Geschultes Fachpersonal, moderne Technik und
-							umweltfreundliche Produkte.
-						</p>
+						<h1>
+							{headlineFirst}
+							{headlineRest && (
+								<>
+									<br />
+									<span class="text-mint">{headlineRest}</span>
+								</>
+							)}
+						</h1>
+						<p class="hero-sub">{startseite.hero_subline}</p>
 						<div class="hero-cta">
-							<a href="#kontakt" class="btn btn-primary">Kostenloses Angebot</a>
-							<a href={phoneHref} class="btn btn-outline">
-								<span class="btn-icon" set:html={iconSvg("clock")} />
-								{phoneNumber}
-							</a>
+							<a href="#kontakt" class="btn btn-primary">{startseite.hero_cta_primaer}</a>
+							<a href="#leistungen" class="btn btn-outline">{startseite.hero_cta_sekundaer}</a>
 						</div>
 						<ul class="stats">
 							{stats.map((stat) => (
@@ -257,6 +239,7 @@ function iconSvg(name: string): string {
 				<div class="section-inner">
 					<p class="eyebrow">Warum GSO</p>
 					<h2>Sauberkeit, auf die Sie sich verlassen können</h2>
+					<div class="section-sub" set:html={ueberUnsHtml} />
 					<div class="why-grid">
 						{whyUs.map((item) => (
 							<div class="why-card">
@@ -350,7 +333,7 @@ function iconSvg(name: string): string {
 					<p><a href={phoneHref}>{phoneNumber}</a></p>
 					<p><a href={`mailto:${email}`}>{email}</a></p>
 					<p><a href={whatsappHref}>WhatsApp Chat</a></p>
-					<p>Region Konstanz / Bodensee</p>
+					<p>{startseite.adresse}</p>
 				</div>
 			</div>
 			<div class="footer-bottom">
