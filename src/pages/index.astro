@@ -1,0 +1,643 @@
+---
+const phoneNumber = "+49 7531 123456";
+const phoneHref = "tel:+497531123456";
+const email = "info@gso-gebaeudeservice.de";
+
+const services = [
+  {
+    title: "Grundreinigung",
+    description:
+      "Intensive Tiefenreinigung für Neubezug, Umzug oder nach Renovierungsarbeiten. Wir entfernen auch hartnäckige Verschmutzungen zuverlässig.",
+    icon: "sparkle",
+  },
+  {
+    title: "Unterhaltsreinigung",
+    description:
+      "Regelmäßige Reinigung für Büros, Treppenhäuser und Gemeinschaftsflächen. Flexible Intervalle, abgestimmt auf Ihren Bedarf.",
+    icon: "broom",
+  },
+  {
+    title: "Büroreinigung",
+    description:
+      "Saubere Arbeitsplätze für ein produktives Team. Diskrete Reinigung außerhalb Ihrer Geschäftszeiten möglich.",
+    icon: "building",
+  },
+  {
+    title: "Fensterreinigung",
+    description:
+      "Streifenfreie Fenster und Glasflächen für Gewerbe und Privat. Auch für schwer erreichbare Fassaden.",
+    icon: "window",
+  },
+  {
+    title: "Hotel- und Gewerbereinigung",
+    description:
+      "Hohe Hygienestandards für Hotels, Gastronomie und Gewerbeflächen. Zuverlässig, termingerecht und discret.",
+    icon: "key",
+  },
+];
+
+const trustPoints = [
+  { label: "Zuverlässig & versichert", icon: "shield" },
+  { label: "Region Konstanz", icon: "pin" },
+  { label: "Gewerbe & Privat", icon: "users" },
+  { label: "Schnelle Reaktionszeit", icon: "clock" },
+];
+
+const icons: Record<string, string> = {
+  shield:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 4 9 8 11 4-2 8-6 8-11V5l-8-3z"/><path d="m9 12 2 2 4-4"/></svg>',
+  pin:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.4-7-12a7 7 0 1 1 14 0c0 5.6-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>',
+  users:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  clock:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>',
+  sparkle:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>',
+  broom:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 4 9 14"/><path d="m13 18-4 4-6-6 4-4z"/><path d="M9 14 4 19l-1 1"/><path d="M19 4a2.5 2.5 0 0 1 0 5"/></svg>',
+  building:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="1"/><path d="M9 22v-4h6v4M8 6h.01M12 6h.01M16 6h.01M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01"/></svg>',
+  window:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18M3 12h18"/></svg>',
+  key:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.5 12.5 8-8M16 6l2 2M19 3l2 2"/></svg>',
+};
+
+function iconSvg(name: string): string {
+  return icons[name] ?? "";
+}
+---
+
+<html lang="de">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<title>GSO Gebäudeservice – Gebäudereinigung in Konstanz</title>
+		<meta
+			name="description"
+			content="GSO Gebäudeservice ist Ihr zuverlässiger Partner für professionelle Gebäudereinigung in Konstanz und Umgebung. Grundreinigung, Unterhaltsreinigung, Büro-, Fenster- und Gewerbereinigung."
+		/>
+		<meta name="generator" content={Astro.generator} />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&display=swap"
+			rel="stylesheet"
+		/>
+	</head>
+	<body>
+		<header class="site-header">
+			<nav class="navbar">
+				<a href="#top" class="logo">GSO Gebäudeservice</a>
+
+				<input type="checkbox" id="nav-toggle" class="nav-toggle" />
+				<label for="nav-toggle" class="nav-toggle-label" aria-label="Menü öffnen">
+					<span></span>
+					<span></span>
+					<span></span>
+				</label>
+
+				<div class="nav-links">
+					<a href="#leistungen">Leistungen</a>
+					<a href="#ueber-uns">Über uns</a>
+					<a href="#kontakt">Kontakt</a>
+					<a href={phoneHref} class="nav-phone">{phoneNumber}</a>
+				</div>
+			</nav>
+		</header>
+
+		<main id="top">
+			<!-- HERO -->
+			<section class="hero">
+				<div class="hero-inner">
+					<div class="hero-text">
+						<h1>Professionelle Gebäudereinigung in Konstanz und Umgebung</h1>
+						<p class="hero-sub">
+							Zuverlässige Reinigungsleistungen für Gewerbe und Privat – termingerecht,
+							gründlich und auf Ihre Bedürfnisse abgestimmt.
+						</p>
+						<div class="hero-cta">
+							<a href="#kontakt" class="btn btn-primary">Kostenlose Anfrage</a>
+							<a href="#leistungen" class="btn btn-outline">Leistungen ansehen</a>
+						</div>
+					</div>
+					<div class="hero-visual" aria-hidden="true"></div>
+				</div>
+			</section>
+
+			<!-- TRUST BAR -->
+			<section class="trust-bar">
+				<ul class="trust-list">
+					{trustPoints.map((point) => (
+						<li class="trust-item">
+							<span class="trust-icon" set:html={iconSvg(point.icon)} />
+							<span>{point.label}</span>
+						</li>
+					))}
+				</ul>
+			</section>
+
+			<!-- LEISTUNGEN -->
+			<section id="leistungen" class="services">
+				<div class="section-inner">
+					<h2>Unsere Leistungen</h2>
+					<div class="service-grid">
+						{services.map((service) => (
+							<article class="service-card">
+								<span class="service-icon" set:html={iconSvg(service.icon)} />
+								<h3>{service.title}</h3>
+								<p>{service.description}</p>
+							</article>
+						))}
+					</div>
+				</div>
+			</section>
+
+			<!-- ÜBER UNS -->
+			<section id="ueber-uns" class="about">
+				<div class="section-inner about-inner">
+					<h2>Ihr lokaler Partner für Sauberkeit</h2>
+					<p>
+						GSO Gebäudeservice ist seit Jahren ein verlässlicher Reinigungspartner für
+						Unternehmen und Privathaushalte in der Region Konstanz. Wir kombinieren
+						gründliche Arbeit mit fairen Preisen und kurzen Reaktionszeiten – damit Sie
+						sich auf das Wesentliche konzentrieren können.
+					</p>
+				</div>
+			</section>
+
+			<!-- CTA SECTION -->
+			<section class="cta-section">
+				<div class="section-inner cta-inner">
+					<h2>Bereit für ein sauberes Ergebnis?</h2>
+					<p>Fordern Sie jetzt Ihr unverbindliches Angebot an – wir melden uns kurzfristig.</p>
+					<a href={phoneHref} class="btn btn-light">Jetzt Kontakt aufnehmen</a>
+				</div>
+			</section>
+		</main>
+
+		<footer id="kontakt" class="site-footer">
+			<div class="section-inner footer-inner">
+				<div class="footer-col">
+					<h3>GSO Gebäudeservice</h3>
+					<p>Ihr Partner für Gebäudereinigung in Konstanz und Umgebung.</p>
+				</div>
+				<div class="footer-col">
+					<h3>Kontakt</h3>
+					<p><a href={phoneHref}>{phoneNumber}</a></p>
+					<p><a href={`mailto:${email}`}>{email}</a></p>
+					<p>Musterstraße 1, 78462 Konstanz</p>
+				</div>
+				<div class="footer-col">
+					<h3>Rechtliches</h3>
+					<p><a href="#">Impressum</a></p>
+					<p><a href="#">Datenschutz</a></p>
+				</div>
+			</div>
+			<div class="footer-bottom">
+				<p>&copy; {new Date().getFullYear()} GSO Gebäudeservice. Alle Rechte vorbehalten.</p>
+			</div>
+		</footer>
+	</body>
+</html>
+
+<style>
+	:root {
+		--color-navy: #0f2044;
+		--color-orange: #e85d04;
+		--color-bg-light: #f4f6f8;
+		--color-white: #ffffff;
+		--font-main: "Plus Jakarta Sans", sans-serif;
+	}
+
+	* {
+		margin: 0;
+		padding: 0;
+		box-sizing: border-box;
+	}
+
+	html {
+		scroll-behavior: smooth;
+	}
+
+	body {
+		font-family: var(--font-main);
+		font-weight: 400;
+		color: var(--color-navy);
+		background: var(--color-white);
+		line-height: 1.6;
+	}
+
+	h1,
+	h2,
+	h3 {
+		font-weight: 800;
+		line-height: 1.2;
+		color: var(--color-navy);
+	}
+
+	a {
+		text-decoration: none;
+		color: inherit;
+	}
+
+	ul {
+		list-style: none;
+	}
+
+	.section-inner {
+		max-width: 1200px;
+		margin: 0 auto;
+		padding: 4rem 1.5rem;
+	}
+
+	/* Buttons */
+	.btn {
+		display: inline-block;
+		padding: 0.9rem 1.8rem;
+		border-radius: 8px;
+		font-weight: 700;
+		font-size: 1rem;
+		transition: transform 0.15s ease, opacity 0.15s ease;
+		text-align: center;
+	}
+
+	.btn:hover {
+		transform: translateY(-2px);
+		opacity: 0.92;
+	}
+
+	.btn-primary {
+		background: var(--color-orange);
+		color: var(--color-white);
+	}
+
+	.btn-outline {
+		background: transparent;
+		border: 2px solid var(--color-white);
+		color: var(--color-white);
+	}
+
+	.btn-light {
+		background: var(--color-white);
+		color: var(--color-navy);
+	}
+
+	/* Header / Nav */
+	.site-header {
+		position: sticky;
+		top: 0;
+		z-index: 100;
+		background: var(--color-white);
+		border-bottom: 1px solid #e3e7ec;
+	}
+
+	.navbar {
+		max-width: 1200px;
+		margin: 0 auto;
+		padding: 1rem 1.5rem;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		position: relative;
+	}
+
+	.logo {
+		font-weight: 800;
+		font-size: 1.25rem;
+		color: var(--color-navy);
+	}
+
+	.nav-toggle {
+		display: none;
+	}
+
+	.nav-toggle-label {
+		display: none;
+		flex-direction: column;
+		gap: 5px;
+		cursor: pointer;
+		z-index: 110;
+	}
+
+	.nav-toggle-label span {
+		width: 26px;
+		height: 3px;
+		background: var(--color-navy);
+		border-radius: 2px;
+	}
+
+	.nav-links {
+		display: flex;
+		align-items: center;
+		gap: 2rem;
+		font-weight: 500;
+	}
+
+	.nav-links a {
+		color: var(--color-navy);
+		transition: color 0.15s ease;
+	}
+
+	.nav-links a:hover {
+		color: var(--color-orange);
+	}
+
+	.nav-phone {
+		color: var(--color-orange) !important;
+		font-weight: 700;
+	}
+
+	/* Hero */
+	.hero {
+		min-height: 100vh;
+		background: var(--color-navy);
+		display: flex;
+		align-items: center;
+		color: var(--color-white);
+	}
+
+	.hero-inner {
+		max-width: 1200px;
+		margin: 0 auto;
+		padding: 2rem 1.5rem;
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 3rem;
+		align-items: center;
+		width: 100%;
+	}
+
+	.hero-text h1 {
+		color: var(--color-white);
+		font-size: 2.25rem;
+		margin-bottom: 1.25rem;
+	}
+
+	.hero-sub {
+		font-size: 1.125rem;
+		font-weight: 400;
+		color: #d6dce8;
+		margin-bottom: 2rem;
+		max-width: 540px;
+	}
+
+	.hero-cta {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 1rem;
+	}
+
+	.hero-visual {
+		display: none;
+		min-height: 360px;
+		border-radius: 16px;
+		background: linear-gradient(135deg, #e85d04 0%, #ff8c42 50%, #0f2044 100%);
+	}
+
+	/* Trust bar */
+	.trust-bar {
+		background: var(--color-white);
+		border-bottom: 1px solid #e3e7ec;
+	}
+
+	.trust-list {
+		max-width: 1200px;
+		margin: 0 auto;
+		padding: 2rem 1.5rem;
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 1.5rem;
+	}
+
+	.trust-item {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		font-weight: 500;
+		justify-content: center;
+		text-align: center;
+	}
+
+	.trust-icon {
+		color: var(--color-orange);
+		display: inline-flex;
+		flex-shrink: 0;
+	}
+
+	.trust-icon :global(svg) {
+		width: 28px;
+		height: 28px;
+	}
+
+	/* Services */
+	.services {
+		background: var(--color-bg-light);
+	}
+
+	.services h2 {
+		font-size: 2rem;
+		text-align: center;
+		margin-bottom: 3rem;
+	}
+
+	.service-grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 1.5rem;
+	}
+
+	.service-card {
+		background: var(--color-white);
+		padding: 2rem;
+		border-radius: 12px;
+		box-shadow: 0 2px 8px rgba(15, 32, 68, 0.06);
+		transition: transform 0.2s ease, box-shadow 0.2s ease;
+	}
+
+	.service-card:hover {
+		transform: translateY(-4px);
+		box-shadow: 0 8px 20px rgba(15, 32, 68, 0.1);
+	}
+
+	.service-icon {
+		display: inline-flex;
+		color: var(--color-orange);
+		margin-bottom: 1.25rem;
+	}
+
+	.service-icon :global(svg) {
+		width: 40px;
+		height: 40px;
+	}
+
+	.service-card h3 {
+		font-size: 1.25rem;
+		margin-bottom: 0.75rem;
+	}
+
+	.service-card p {
+		font-weight: 400;
+		color: #3c4a63;
+		font-size: 0.975rem;
+	}
+
+	/* About */
+	.about {
+		background: var(--color-white);
+	}
+
+	.about-inner {
+		max-width: 800px;
+		text-align: center;
+	}
+
+	.about h2 {
+		font-size: 2rem;
+		margin-bottom: 1.25rem;
+	}
+
+	.about p {
+		font-size: 1.05rem;
+		color: #3c4a63;
+	}
+
+	/* CTA section */
+	.cta-section {
+		background: var(--color-orange);
+		color: var(--color-white);
+	}
+
+	.cta-inner {
+		text-align: center;
+	}
+
+	.cta-section h2 {
+		color: var(--color-white);
+		font-size: 2rem;
+		margin-bottom: 1rem;
+	}
+
+	.cta-section p {
+		font-size: 1.1rem;
+		margin-bottom: 2rem;
+		opacity: 0.95;
+	}
+
+	/* Footer */
+	.site-footer {
+		background: var(--color-navy);
+		color: var(--color-white);
+	}
+
+	.footer-inner {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 2.5rem;
+		padding-bottom: 2rem;
+	}
+
+	.footer-col h3 {
+		color: var(--color-white);
+		font-size: 1.1rem;
+		margin-bottom: 1rem;
+	}
+
+	.footer-col p {
+		color: #c2c9d6;
+		margin-bottom: 0.5rem;
+		font-size: 0.95rem;
+	}
+
+	.footer-col a:hover {
+		color: var(--color-orange);
+	}
+
+	.footer-bottom {
+		border-top: 1px solid rgba(255, 255, 255, 0.15);
+		text-align: center;
+		padding: 1.5rem;
+		font-size: 0.85rem;
+		color: #9aa4b8;
+	}
+
+	/* Tablet */
+	@media (min-width: 768px) {
+		.hero-text h1 {
+			font-size: 2.75rem;
+		}
+
+		.trust-list {
+			grid-template-columns: repeat(2, 1fr);
+		}
+
+		.service-grid {
+			grid-template-columns: repeat(2, 1fr);
+		}
+
+		.footer-inner {
+			grid-template-columns: repeat(3, 1fr);
+		}
+	}
+
+	/* Desktop */
+	@media (min-width: 1024px) {
+		.nav-toggle-label {
+			display: none;
+		}
+
+		.hero-inner {
+			grid-template-columns: 1.1fr 0.9fr;
+		}
+
+		.hero-text h1 {
+			font-size: 3.25rem;
+		}
+
+		.hero-visual {
+			display: block;
+		}
+
+		.trust-list {
+			grid-template-columns: repeat(4, 1fr);
+		}
+
+		.service-grid {
+			grid-template-columns: repeat(3, 1fr);
+		}
+	}
+
+	/* Mobile nav (CSS-only hamburger) */
+	@media (max-width: 1023px) {
+		.nav-toggle-label {
+			display: flex;
+		}
+
+		.nav-links {
+			position: absolute;
+			top: 100%;
+			left: 0;
+			right: 0;
+			background: var(--color-white);
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 0;
+			max-height: 0;
+			overflow: hidden;
+			transition: max-height 0.3s ease;
+			border-bottom: 1px solid #e3e7ec;
+		}
+
+		.nav-links a {
+			width: 100%;
+			padding: 1rem 1.5rem;
+			border-top: 1px solid #eef0f3;
+		}
+
+		.nav-toggle:checked ~ .nav-links {
+			max-height: 400px;
+		}
+	}
+</style>
