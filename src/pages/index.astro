@@ -1,46 +1,113 @@
 ---
 const phoneNumber = "+49 7531 123456";
 const phoneHref = "tel:+497531123456";
+const whatsappHref = "https://wa.me/497531123456";
 const email = "info@gso-gebaeudeservice.de";
+
+const stats = [
+  { value: "15+", label: "Jahre Erfahrung" },
+  { value: "100%", label: "geschult & versichert" },
+  { value: "24h", label: "Antwortzeit" },
+];
 
 const services = [
   {
-    title: "Grundreinigung",
+    title: "Intensive Grundreinigung",
     description:
-      "Intensive Tiefenreinigung für Neubezug, Umzug oder nach Renovierungsarbeiten. Wir entfernen auch hartnäckige Verschmutzungen zuverlässig.",
+      "Tiefenreinigung für besonders gründliche Sauberkeit – hartnäckiger Schmutz, Kalk und Ablagerungen werden nachhaltig entfernt.",
     icon: "sparkle",
+  },
+  {
+    title: "Glasreinigung, Fenster & Jalousien",
+    description:
+      "Innen, außen, Rahmen und Falz – streifenfreie Fenster und Glasflächen jeder Größe, von Schaufenstern bis Fassaden.",
+    icon: "window",
   },
   {
     title: "Unterhaltsreinigung",
     description:
-      "Regelmäßige Reinigung für Büros, Treppenhäuser und Gemeinschaftsflächen. Flexible Intervalle, abgestimmt auf Ihren Bedarf.",
+      "Regelmäßige, wiederkehrende Reinigung für Geschäftsräume und Privathaushalte – täglich, wöchentlich oder monatlich.",
     icon: "broom",
   },
   {
-    title: "Büroreinigung",
+    title: "Büro & Arbeitsplatz",
     description:
-      "Saubere Arbeitsplätze für ein produktives Team. Diskrete Reinigung außerhalb Ihrer Geschäftszeiten möglich.",
+      "Tägliche oder wöchentliche Reinigung von Büros, Konferenzräumen, Küchen und Sanitärbereichen für hygienisches Arbeiten.",
     icon: "building",
   },
   {
-    title: "Fensterreinigung",
+    title: "Treppenhausreinigung",
     description:
-      "Streifenfreie Fenster und Glasflächen für Gewerbe und Privat. Auch für schwer erreichbare Fassaden.",
-    icon: "window",
+      "Saubere und sichere Treppenhäuser in Wohn- und Geschäftsobjekten – regelmäßig und gewissenhaft.",
+    icon: "stairs",
   },
   {
-    title: "Hotel- und Gewerbereinigung",
+    title: "Schulen & Kindergarten",
     description:
-      "Hohe Hygienestandards für Hotels, Gastronomie und Gewerbeflächen. Zuverlässig, termingerecht und discret.",
+      "Hygiene-Reinigung für Klassenzimmer, Turnhallen, Sanitärbereiche und Küchen – kindgerecht und umweltfreundlich.",
+    icon: "school",
+  },
+  {
+    title: "Praxis & Krankenhaus",
+    description:
+      "Medizinische Reinigung und Desinfektion auf höchstem Hygieneniveau – für Arztpraxen, Kliniken und Pflegeeinrichtungen.",
+    icon: "medical",
+  },
+  {
+    title: "Hotelreinigung & Gewerbe",
+    description:
+      "Maßgeschneiderte Reinigung für Hotels und Gewerbeobjekte – inklusive Teppich-, Polster- und Fensterreinigung.",
     icon: "key",
   },
 ];
 
-const trustPoints = [
-  { label: "Zuverlässig & versichert", icon: "shield" },
-  { label: "Region Konstanz", icon: "pin" },
-  { label: "Gewerbe & Privat", icon: "users" },
-  { label: "Schnelle Reaktionszeit", icon: "clock" },
+const whyUs = [
+  {
+    number: "01",
+    title: "Geschult & versichert",
+    description: "Unser gesamtes Team ist vollständig geschult, versichert und arbeitet mit modernsten Techniken.",
+  },
+  {
+    number: "02",
+    title: "Umweltfreundlich",
+    description: "Wir verwenden ausschließlich umweltverträgliche Reinigungsmittel – sicher für Sie, Ihre Mitarbeiter und die Natur.",
+  },
+  {
+    number: "03",
+    title: "Flexibel & individuell",
+    description: "Wöchentliche, zweiwöchentliche oder einmalige Reinigungspläne, die zu Ihrem Alltag passen.",
+  },
+  {
+    number: "04",
+    title: "Faire Preise",
+    description: "Hochwertige Dienstleistungen zu transparenten, erschwinglichen Konditionen.",
+  },
+];
+
+const steps = [
+  {
+    number: "1",
+    title: "Erstkontakt",
+    description: "Erreichen Sie uns telefonisch oder per Mail. Bei speziellen Wünschen kommen wir gerne kostenlos vor Ort.",
+  },
+  {
+    number: "2",
+    title: "Angebot",
+    description: "Nach Prüfung Ihrer Wünsche erhalten Sie innerhalb eines Tages ein unverbindliches Angebot.",
+  },
+  {
+    number: "3",
+    title: "Ausführung",
+    description: "Termin vereinbart – unser Fachpersonal kommt vorbei und los geht's.",
+  },
+];
+
+const tags = [
+  "Badezimmer", "Balkon & Terrasse", "Bodenpflege", "Dachrinnen", "Desinfektion",
+  "Fenster", "Fassadenreinigung", "Garten- & Rasenpflege", "Glasflächen", "Hausreinigung",
+  "Jalousien", "Küchen", "Müllentsorgung", "Nasswischen", "Polsterreinigung",
+  "Schaufenster", "Staubsaugen", "Staubwischen", "Teppichreinigung", "Tiefenreinigung",
+  "Toiletten", "Treppenhaus",
 ];
 
 const icons: Record<string, string> = {
@@ -62,6 +129,16 @@ const icons: Record<string, string> = {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18M3 12h18"/></svg>',
   key:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.5 12.5 8-8M16 6l2 2M19 3l2 2"/></svg>',
+  stairs:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21v-4h4v-4h4v-4h4V5h4"/></svg>',
+  school:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 4.5-9 4.5-9-4.5L12 3z"/><path d="M7 10.5V16c0 1 2.5 2.5 5 2.5s5-1.5 5-2.5v-5.5"/></svg>',
+  medical:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 8v8M8 12h8"/></svg>',
+  whatsapp:
+    '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.5 14.4c-.3-.1-1.6-.8-1.9-.9-.2-.1-.4-.1-.6.1-.2.2-.6.9-.8 1.1-.1.2-.3.2-.5.1-1.3-.6-2.1-1.1-3-2.5-.2-.3 0-.5.1-.6.2-.2.4-.5.6-.7.1-.2.1-.4 0-.6-.1-.2-.6-1.5-.8-2-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.4-.2.3-.9 1-.9 2.3 0 1.4 1 2.7 1.1 2.9.1.2 1.9 3 4.6 4 2.7 1.1 2.7.7 3.2.6.5 0 1.6-.6 1.8-1.3.2-.6.2-1.1.2-1.2-.1-.2-.2-.2-.5-.3z"/><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2z"/></svg>',
+  arrow:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>',
 };
 
 function iconSvg(name: string): string {
@@ -77,7 +154,7 @@ function iconSvg(name: string): string {
 		<title>GSO Gebäudeservice – Gebäudereinigung in Konstanz</title>
 		<meta
 			name="description"
-			content="GSO Gebäudeservice ist Ihr zuverlässiger Partner für professionelle Gebäudereinigung in Konstanz und Umgebung. Grundreinigung, Unterhaltsreinigung, Büro-, Fenster- und Gewerbereinigung."
+			content="GSO Gebäudeservice ist Ihr zuverlässiger Partner für professionelle Gebäudereinigung in Konstanz und am Bodensee. Grundreinigung, Unterhaltsreinigung, Büro-, Fenster- und Gewerbereinigung."
 		/>
 		<meta name="generator" content={Astro.generator} />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -90,7 +167,10 @@ function iconSvg(name: string): string {
 	<body>
 		<header class="site-header">
 			<nav class="navbar">
-				<a href="#top" class="logo">GSO Gebäudeservice</a>
+				<a href="#top" class="logo">
+					<span class="logo-main">GSO</span>
+					<span class="logo-sub">Gebäude-Service<br /><small>Konstanz &middot; Bodensee</small></span>
+				</a>
 
 				<input type="checkbox" id="nav-toggle" class="nav-toggle" />
 				<label for="nav-toggle" class="nav-toggle-label" aria-label="Menü öffnen">
@@ -100,10 +180,14 @@ function iconSvg(name: string): string {
 				</label>
 
 				<div class="nav-links">
+					<a href="#top">Start</a>
 					<a href="#leistungen">Leistungen</a>
 					<a href="#ueber-uns">Über uns</a>
 					<a href="#kontakt">Kontakt</a>
-					<a href={phoneHref} class="nav-phone">{phoneNumber}</a>
+					<a href={phoneHref} class="nav-phone">
+						<span set:html={iconSvg("clock")} class="nav-phone-icon" />
+						{phoneNumber}
+					</a>
 				</div>
 			</nav>
 		</header>
@@ -113,67 +197,129 @@ function iconSvg(name: string): string {
 			<section class="hero">
 				<div class="hero-inner">
 					<div class="hero-text">
-						<h1>Professionelle Gebäudereinigung in Konstanz und Umgebung</h1>
+						<span class="badge">
+							<span class="badge-icon" set:html={iconSvg("pin")} />
+							Region Konstanz &middot; Bodensee
+						</span>
+						<h1>Saubere Räume.<br /><span class="text-mint">Klarer Kopf.</span></h1>
 						<p class="hero-sub">
-							Zuverlässige Reinigungsleistungen für Gewerbe und Privat – termingerecht,
-							gründlich und auf Ihre Bedürfnisse abgestimmt.
+							Professionelle Gebäudereinigung für Privat und Gewerbe – gründlich,
+							zuverlässig und preiswert. Geschultes Fachpersonal, moderne Technik und
+							umweltfreundliche Produkte.
 						</p>
 						<div class="hero-cta">
-							<a href="#kontakt" class="btn btn-primary">Kostenlose Anfrage</a>
-							<a href="#leistungen" class="btn btn-outline">Leistungen ansehen</a>
+							<a href="#kontakt" class="btn btn-primary">Kostenloses Angebot</a>
+							<a href={phoneHref} class="btn btn-outline">
+								<span class="btn-icon" set:html={iconSvg("clock")} />
+								{phoneNumber}
+							</a>
 						</div>
+						<ul class="stats">
+							{stats.map((stat) => (
+								<li>
+									<span class="stat-value">{stat.value}</span>
+									<span class="stat-label">{stat.label}</span>
+								</li>
+							))}
+						</ul>
 					</div>
 					<div class="hero-visual" aria-hidden="true"></div>
 				</div>
 			</section>
 
-			<!-- TRUST BAR -->
-			<section class="trust-bar">
-				<ul class="trust-list">
-					{trustPoints.map((point) => (
-						<li class="trust-item">
-							<span class="trust-icon" set:html={iconSvg(point.icon)} />
-							<span>{point.label}</span>
-						</li>
-					))}
-				</ul>
-			</section>
-
 			<!-- LEISTUNGEN -->
 			<section id="leistungen" class="services">
 				<div class="section-inner">
-					<h2>Unsere Leistungen</h2>
+					<p class="eyebrow">Unsere Leistungen</p>
+					<h2>Reinigung für jeden Bedarf</h2>
+					<p class="section-sub">
+						Von der intensiven Grundreinigung bis zur regelmäßigen Pflege Ihrer Räume –
+						wir bieten maßgeschneiderte Lösungen für Ihr Zuhause, Büro oder Gewerbeobjekt.
+					</p>
 					<div class="service-grid">
 						{services.map((service) => (
 							<article class="service-card">
 								<span class="service-icon" set:html={iconSvg(service.icon)} />
 								<h3>{service.title}</h3>
 								<p>{service.description}</p>
+								<a href="#kontakt" class="service-link">
+									Mehr erfahren
+									<span class="link-arrow" set:html={iconSvg("arrow")} />
+								</a>
 							</article>
 						))}
 					</div>
 				</div>
 			</section>
 
-			<!-- ÜBER UNS -->
-			<section id="ueber-uns" class="about">
-				<div class="section-inner about-inner">
-					<h2>Ihr lokaler Partner für Sauberkeit</h2>
-					<p>
-						GSO Gebäudeservice ist seit Jahren ein verlässlicher Reinigungspartner für
-						Unternehmen und Privathaushalte in der Region Konstanz. Wir kombinieren
-						gründliche Arbeit mit fairen Preisen und kurzen Reaktionszeiten – damit Sie
-						sich auf das Wesentliche konzentrieren können.
+			<!-- WARUM GSO -->
+			<section id="ueber-uns" class="why-us">
+				<div class="section-inner">
+					<p class="eyebrow">Warum GSO</p>
+					<h2>Sauberkeit, auf die Sie sich verlassen können</h2>
+					<div class="why-grid">
+						{whyUs.map((item) => (
+							<div class="why-card">
+								<span class="why-number">{item.number}</span>
+								<h3>{item.title}</h3>
+								<p>{item.description}</p>
+							</div>
+						))}
+					</div>
+				</div>
+			</section>
+
+			<!-- PROZESS -->
+			<section class="process">
+				<div class="section-inner">
+					<p class="eyebrow">So einfach geht's</p>
+					<h2>In drei Schritten zur sauberen Lösung</h2>
+					<div class="process-grid">
+						{steps.map((step) => (
+							<div class="process-card">
+								<span class="process-number">{step.number}</span>
+								<h3>{step.title}</h3>
+								<p>{step.description}</p>
+							</div>
+						))}
+					</div>
+				</div>
+			</section>
+
+			<!-- TAG CLOUD -->
+			<section class="tag-cloud-section">
+				<div class="section-inner">
+					<p class="eyebrow">Schwerpunkte</p>
+					<h2>Was wir alles reinigen</h2>
+					<p class="section-sub">
+						Ein Auszug aus unserem Leistungsspektrum – sprechen Sie uns gerne auf
+						individuelle Anforderungen an.
 					</p>
+					<ul class="tag-cloud">
+						{tags.map((tag) => (
+							<li class="tag">{tag}</li>
+						))}
+					</ul>
 				</div>
 			</section>
 
 			<!-- CTA SECTION -->
 			<section class="cta-section">
 				<div class="section-inner cta-inner">
-					<h2>Bereit für ein sauberes Ergebnis?</h2>
-					<p>Fordern Sie jetzt Ihr unverbindliches Angebot an – wir melden uns kurzfristig.</p>
-					<a href={phoneHref} class="btn btn-light">Jetzt Kontakt aufnehmen</a>
+					<div class="cta-text">
+						<h2>Bereit für strahlend saubere Räume?</h2>
+						<p>
+							Holen Sie sich Ihr kostenloses, unverbindliches Angebot – wir melden uns
+							innerhalb von 24 Stunden.
+						</p>
+					</div>
+					<div class="cta-buttons">
+						<a href="#kontakt" class="btn btn-light">Angebot anfragen</a>
+						<a href={whatsappHref} class="btn btn-whatsapp">
+							<span class="btn-icon" set:html={iconSvg("whatsapp")} />
+							WhatsApp
+						</a>
+					</div>
 				</div>
 			</section>
 		</main>
@@ -181,23 +327,38 @@ function iconSvg(name: string): string {
 		<footer id="kontakt" class="site-footer">
 			<div class="section-inner footer-inner">
 				<div class="footer-col">
-					<h3>GSO Gebäudeservice</h3>
-					<p>Ihr Partner für Gebäudereinigung in Konstanz und Umgebung.</p>
+					<h3 class="footer-logo">GSO Gebäude-Service</h3>
+					<p>
+						Professionelle Gebäudereinigung in Konstanz und am Bodensee. Gründlich,
+						zuverlässig und preiswert – bei Ihnen zuhause oder im Büro.
+					</p>
+				</div>
+				<div class="footer-col">
+					<h3>Leistungen</h3>
+					{services.map((service) => (
+						<p><a href="#leistungen">{service.title}</a></p>
+					))}
+				</div>
+				<div class="footer-col">
+					<h3>Unternehmen</h3>
+					<p><a href="#ueber-uns">Über uns</a></p>
+					<p><a href="#kontakt">Kontakt</a></p>
+					<p><a href="#leistungen">Alle Leistungen</a></p>
 				</div>
 				<div class="footer-col">
 					<h3>Kontakt</h3>
 					<p><a href={phoneHref}>{phoneNumber}</a></p>
 					<p><a href={`mailto:${email}`}>{email}</a></p>
-					<p>Musterstraße 1, 78462 Konstanz</p>
-				</div>
-				<div class="footer-col">
-					<h3>Rechtliches</h3>
-					<p><a href="#">Impressum</a></p>
-					<p><a href="#">Datenschutz</a></p>
+					<p><a href={whatsappHref}>WhatsApp Chat</a></p>
+					<p>Region Konstanz / Bodensee</p>
 				</div>
 			</div>
 			<div class="footer-bottom">
-				<p>&copy; {new Date().getFullYear()} GSO Gebäudeservice. Alle Rechte vorbehalten.</p>
+				<p>
+					&copy; {new Date().getFullYear()} GSO Gebäude-Service &middot; Konstanz &middot;
+					Alle Rechte vorbehalten &middot; <a href="#">Datenschutz</a> &middot;
+					<a href="#">Impressum</a>
+				</p>
 			</div>
 		</footer>
 	</body>
@@ -206,7 +367,11 @@ function iconSvg(name: string): string {
 <style>
 	:root {
 		--color-navy: #0f2044;
+		--color-navy-light: #1a2f5c;
 		--color-orange: #e85d04;
+		--color-mint: #14b8a6;
+		--color-mint-light: #ecfdf9;
+		--color-whatsapp: #25d366;
 		--color-bg-light: #f4f6f8;
 		--color-white: #ffffff;
 		--font-main: "Plus Jakarta Sans", sans-serif;
@@ -253,11 +418,35 @@ function iconSvg(name: string): string {
 		padding: 4rem 1.5rem;
 	}
 
+	.eyebrow {
+		color: var(--color-mint);
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		font-size: 0.85rem;
+		text-align: center;
+		margin-bottom: 0.75rem;
+	}
+
+	.section-sub {
+		text-align: center;
+		max-width: 640px;
+		margin: 0 auto 3rem;
+		color: #3c4a63;
+	}
+
+	.text-mint {
+		color: var(--color-mint);
+	}
+
 	/* Buttons */
 	.btn {
-		display: inline-block;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
 		padding: 0.9rem 1.8rem;
-		border-radius: 8px;
+		border-radius: 999px;
 		font-weight: 700;
 		font-size: 1rem;
 		transition: transform 0.15s ease, opacity 0.15s ease;
@@ -269,6 +458,17 @@ function iconSvg(name: string): string {
 		opacity: 0.92;
 	}
 
+	.btn-icon,
+	.link-arrow {
+		display: inline-flex;
+	}
+
+	.btn-icon :global(svg),
+	.link-arrow :global(svg) {
+		width: 18px;
+		height: 18px;
+	}
+
 	.btn-primary {
 		background: var(--color-orange);
 		color: var(--color-white);
@@ -276,13 +476,18 @@ function iconSvg(name: string): string {
 
 	.btn-outline {
 		background: transparent;
-		border: 2px solid var(--color-white);
-		color: var(--color-white);
+		border: 2px solid var(--color-navy);
+		color: var(--color-navy);
 	}
 
 	.btn-light {
 		background: var(--color-white);
 		color: var(--color-navy);
+	}
+
+	.btn-whatsapp {
+		background: var(--color-whatsapp);
+		color: var(--color-white);
 	}
 
 	/* Header / Nav */
@@ -305,9 +510,30 @@ function iconSvg(name: string): string {
 	}
 
 	.logo {
+		display: flex;
+		align-items: baseline;
+		gap: 0.5rem;
+	}
+
+	.logo-main {
 		font-weight: 800;
-		font-size: 1.25rem;
+		font-size: 1.5rem;
 		color: var(--color-navy);
+	}
+
+	.logo-sub {
+		font-weight: 700;
+		font-size: 0.85rem;
+		color: var(--color-navy);
+		line-height: 1.2;
+	}
+
+	.logo-sub small {
+		font-weight: 500;
+		font-size: 0.65rem;
+		color: var(--color-mint);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
 	}
 
 	.nav-toggle {
@@ -342,44 +568,73 @@ function iconSvg(name: string): string {
 	}
 
 	.nav-links a:hover {
-		color: var(--color-orange);
+		color: var(--color-mint);
 	}
 
 	.nav-phone {
-		color: var(--color-orange) !important;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		background: var(--color-navy);
+		color: var(--color-white) !important;
 		font-weight: 700;
+		padding: 0.6rem 1.2rem;
+		border-radius: 999px;
+	}
+
+	.nav-phone:hover {
+		color: var(--color-white) !important;
+		opacity: 0.9;
+	}
+
+	.nav-phone-icon :global(svg) {
+		width: 16px;
+		height: 16px;
 	}
 
 	/* Hero */
 	.hero {
-		min-height: 100vh;
-		background: var(--color-navy);
-		display: flex;
-		align-items: center;
-		color: var(--color-white);
+		background: linear-gradient(160deg, #ffffff 0%, var(--color-mint-light) 100%);
 	}
 
 	.hero-inner {
 		max-width: 1200px;
 		margin: 0 auto;
-		padding: 2rem 1.5rem;
+		padding: 3rem 1.5rem 4rem;
 		display: grid;
 		grid-template-columns: 1fr;
-		gap: 3rem;
+		gap: 2.5rem;
 		align-items: center;
 		width: 100%;
 	}
 
+	.badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		background: var(--color-mint-light);
+		color: var(--color-mint);
+		font-weight: 700;
+		font-size: 0.8rem;
+		padding: 0.4rem 1rem;
+		border-radius: 999px;
+		margin-bottom: 1.25rem;
+	}
+
+	.badge-icon :global(svg) {
+		width: 14px;
+		height: 14px;
+	}
+
 	.hero-text h1 {
-		color: var(--color-white);
 		font-size: 2.25rem;
 		margin-bottom: 1.25rem;
 	}
 
 	.hero-sub {
-		font-size: 1.125rem;
+		font-size: 1.1rem;
 		font-weight: 400;
-		color: #d6dce8;
+		color: #3c4a63;
 		margin-bottom: 2rem;
 		max-width: 540px;
 	}
@@ -388,48 +643,36 @@ function iconSvg(name: string): string {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 1rem;
+		margin-bottom: 2.5rem;
+	}
+
+	.stats {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 2rem;
+	}
+
+	.stats li {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.stat-value {
+		font-weight: 800;
+		font-size: 1.5rem;
+		color: var(--color-navy);
+	}
+
+	.stat-label {
+		font-size: 0.85rem;
+		color: #6b7689;
 	}
 
 	.hero-visual {
 		display: none;
 		min-height: 360px;
-		border-radius: 16px;
-		background: linear-gradient(135deg, #e85d04 0%, #ff8c42 50%, #0f2044 100%);
-	}
-
-	/* Trust bar */
-	.trust-bar {
-		background: var(--color-white);
-		border-bottom: 1px solid #e3e7ec;
-	}
-
-	.trust-list {
-		max-width: 1200px;
-		margin: 0 auto;
-		padding: 2rem 1.5rem;
-		display: grid;
-		grid-template-columns: 1fr;
-		gap: 1.5rem;
-	}
-
-	.trust-item {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		font-weight: 500;
-		justify-content: center;
-		text-align: center;
-	}
-
-	.trust-icon {
-		color: var(--color-orange);
-		display: inline-flex;
-		flex-shrink: 0;
-	}
-
-	.trust-icon :global(svg) {
-		width: 28px;
-		height: 28px;
+		border-radius: 24px;
+		background: linear-gradient(135deg, var(--color-mint) 0%, #5eead4 50%, var(--color-navy) 100%);
 	}
 
 	/* Services */
@@ -437,10 +680,13 @@ function iconSvg(name: string): string {
 		background: var(--color-bg-light);
 	}
 
-	.services h2 {
+	.services h2,
+	.why-us h2,
+	.process h2,
+	.tag-cloud-section h2 {
 		font-size: 2rem;
 		text-align: center;
-		margin-bottom: 3rem;
+		margin-bottom: 1rem;
 	}
 
 	.service-grid {
@@ -452,9 +698,11 @@ function iconSvg(name: string): string {
 	.service-card {
 		background: var(--color-white);
 		padding: 2rem;
-		border-radius: 12px;
+		border-radius: 16px;
 		box-shadow: 0 2px 8px rgba(15, 32, 68, 0.06);
 		transition: transform 0.2s ease, box-shadow 0.2s ease;
+		display: flex;
+		flex-direction: column;
 	}
 
 	.service-card:hover {
@@ -464,66 +712,174 @@ function iconSvg(name: string): string {
 
 	.service-icon {
 		display: inline-flex;
-		color: var(--color-orange);
+		align-items: center;
+		justify-content: center;
+		width: 52px;
+		height: 52px;
+		border-radius: 14px;
+		background: var(--color-mint-light);
+		color: var(--color-mint);
 		margin-bottom: 1.25rem;
 	}
 
 	.service-icon :global(svg) {
-		width: 40px;
-		height: 40px;
+		width: 26px;
+		height: 26px;
 	}
 
 	.service-card h3 {
-		font-size: 1.25rem;
-		margin-bottom: 0.75rem;
+		font-size: 1.15rem;
+		margin-bottom: 0.6rem;
 	}
 
 	.service-card p {
 		font-weight: 400;
 		color: #3c4a63;
-		font-size: 0.975rem;
+		font-size: 0.95rem;
+		flex-grow: 1;
 	}
 
-	/* About */
-	.about {
+	.service-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		color: var(--color-mint);
+		font-weight: 700;
+		font-size: 0.9rem;
+		margin-top: 1.25rem;
+	}
+
+	.link-arrow :global(svg) {
+		width: 16px;
+		height: 16px;
+	}
+
+	/* Why us */
+	.why-us {
 		background: var(--color-white);
 	}
 
-	.about-inner {
-		max-width: 800px;
+	.why-grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 1.5rem;
+	}
+
+	.why-card {
+		background: var(--color-bg-light);
+		padding: 1.75rem;
+		border-radius: 16px;
+	}
+
+	.why-number {
+		display: inline-block;
+		color: var(--color-mint);
+		font-weight: 800;
+		font-size: 1.1rem;
+		margin-bottom: 0.5rem;
+	}
+
+	.why-card h3 {
+		font-size: 1.1rem;
+		margin-bottom: 0.5rem;
+	}
+
+	.why-card p {
+		color: #3c4a63;
+		font-size: 0.92rem;
+	}
+
+	/* Process */
+	.process {
+		background: var(--color-bg-light);
+	}
+
+	.process-grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 1.5rem;
+	}
+
+	.process-card {
+		background: var(--color-white);
+		padding: 1.75rem;
+		border-radius: 16px;
 		text-align: center;
 	}
 
-	.about h2 {
-		font-size: 2rem;
-		margin-bottom: 1.25rem;
+	.process-number {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 36px;
+		height: 36px;
+		border-radius: 50%;
+		background: var(--color-mint);
+		color: var(--color-white);
+		font-weight: 800;
+		margin-bottom: 1rem;
 	}
 
-	.about p {
-		font-size: 1.05rem;
+	.process-card h3 {
+		font-size: 1.1rem;
+		margin-bottom: 0.5rem;
+	}
+
+	.process-card p {
 		color: #3c4a63;
+		font-size: 0.92rem;
+	}
+
+	/* Tag cloud */
+	.tag-cloud-section {
+		background: var(--color-white);
+	}
+
+	.tag-cloud {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.6rem;
+	}
+
+	.tag {
+		background: var(--color-bg-light);
+		color: var(--color-navy);
+		font-size: 0.85rem;
+		font-weight: 500;
+		padding: 0.5rem 1rem;
+		border-radius: 999px;
 	}
 
 	/* CTA section */
 	.cta-section {
-		background: var(--color-orange);
+		background: var(--color-navy);
 		color: var(--color-white);
 	}
 
 	.cta-inner {
-		text-align: center;
+		display: flex;
+		flex-direction: column;
+		gap: 2rem;
+		align-items: flex-start;
 	}
 
-	.cta-section h2 {
+	.cta-text h2 {
 		color: var(--color-white);
-		font-size: 2rem;
-		margin-bottom: 1rem;
+		font-size: 1.85rem;
+		margin-bottom: 0.75rem;
 	}
 
-	.cta-section p {
-		font-size: 1.1rem;
-		margin-bottom: 2rem;
-		opacity: 0.95;
+	.cta-text p {
+		font-size: 1.05rem;
+		color: #c2c9d6;
+		max-width: 480px;
+	}
+
+	.cta-buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 1rem;
 	}
 
 	/* Footer */
@@ -541,18 +897,22 @@ function iconSvg(name: string): string {
 
 	.footer-col h3 {
 		color: var(--color-white);
-		font-size: 1.1rem;
+		font-size: 1.05rem;
 		margin-bottom: 1rem;
+	}
+
+	.footer-logo {
+		font-size: 1.2rem;
 	}
 
 	.footer-col p {
 		color: #c2c9d6;
 		margin-bottom: 0.5rem;
-		font-size: 0.95rem;
+		font-size: 0.9rem;
 	}
 
 	.footer-col a:hover {
-		color: var(--color-orange);
+		color: var(--color-mint);
 	}
 
 	.footer-bottom {
@@ -563,31 +923,45 @@ function iconSvg(name: string): string {
 		color: #9aa4b8;
 	}
 
+	.footer-bottom a {
+		color: #9aa4b8;
+	}
+
+	.footer-bottom a:hover {
+		color: var(--color-mint);
+	}
+
 	/* Tablet */
 	@media (min-width: 768px) {
 		.hero-text h1 {
 			font-size: 2.75rem;
 		}
 
-		.trust-list {
-			grid-template-columns: repeat(2, 1fr);
-		}
-
 		.service-grid {
 			grid-template-columns: repeat(2, 1fr);
 		}
 
-		.footer-inner {
+		.why-grid {
+			grid-template-columns: repeat(2, 1fr);
+		}
+
+		.process-grid {
 			grid-template-columns: repeat(3, 1fr);
+		}
+
+		.footer-inner {
+			grid-template-columns: repeat(2, 1fr);
+		}
+
+		.cta-inner {
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
 		}
 	}
 
 	/* Desktop */
 	@media (min-width: 1024px) {
-		.nav-toggle-label {
-			display: none;
-		}
-
 		.hero-inner {
 			grid-template-columns: 1.1fr 0.9fr;
 		}
@@ -600,12 +974,16 @@ function iconSvg(name: string): string {
 			display: block;
 		}
 
-		.trust-list {
+		.service-grid {
 			grid-template-columns: repeat(4, 1fr);
 		}
 
-		.service-grid {
-			grid-template-columns: repeat(3, 1fr);
+		.why-grid {
+			grid-template-columns: repeat(4, 1fr);
+		}
+
+		.footer-inner {
+			grid-template-columns: repeat(4, 1fr);
 		}
 	}
 
@@ -636,8 +1014,15 @@ function iconSvg(name: string): string {
 			border-top: 1px solid #eef0f3;
 		}
 
+		.nav-phone {
+			width: calc(100% - 3rem);
+			margin: 0.5rem 1.5rem;
+			justify-content: center;
+			border-top: none !important;
+		}
+
 		.nav-toggle:checked ~ .nav-links {
-			max-height: 400px;
+			max-height: 600px;
 		}
 	}
 </style>
