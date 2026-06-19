@@ -3,6 +3,7 @@ export const prerender = false;
 
 import { createBucketClient } from "@cosmicjs/sdk";
 import { marked } from "marked";
+import SiteLayout from "../layouts/SiteLayout.astro";
 
 const runtimeEnv = Astro.locals.runtime?.env ?? import.meta.env;
 const cosmic = createBucketClient({
@@ -10,25 +11,129 @@ const cosmic = createBucketClient({
   readKey: runtimeEnv.COSMIC_READ_KEY,
 });
 
-const { objects: storys } = await cosmic.objects
+const { object: startseite } = await cosmic.objects
+  .findOne({ type: "startseite" })
+  .props("metadata");
+const startseiteData = startseite.metadata;
+
+const { objects: leistungenEntries } = await cosmic.objects
+  .find({ type: "leistungen" })
+  .props("metadata");
+const services = leistungenEntries.map((entry) => ({ title: entry.metadata.titel }));
+
+const { objects: storyEntries } = await cosmic.objects
   .find({ type: "kundenstorys" })
   .props("metadata")
   .sort("-metadata.veroeffentlicht_am");
+const storys = storyEntries.map((entry) => ({
+  kundenname: entry.metadata.kundenname,
+  branche: entry.metadata.branche,
+  storyHtml: marked.parse(entry.metadata.story ?? ""),
+  datum: entry.metadata.veroeffentlicht_am,
+}));
 ---
 
-<html lang="de">
-	<head>
-		<meta charset="UTF-8" />
-		<title>Kundenstorys – Test</title>
-	</head>
-	<body>
-		<h1>Kundenstorys</h1>
-		{storys.map((story) => (
-			<article>
-				<h2>{story.metadata.kundenname}</h2>
-				<p><em>{story.metadata.branche} · {story.metadata.veroeffentlicht_am}</em></p>
-				<div set:html={marked.parse(story.metadata.story ?? "")} />
-			</article>
-		))}
-	</body>
-</html>
+<SiteLayout
+	title={`Kundenstorys – ${startseiteData.meta_title}`}
+	description="Erfahrungsberichte unserer Kunden mit GSO Gebäudeservice."
+	phoneNumber={startseiteData.telefonnummer}
+	email={startseiteData.email}
+	adresse={startseiteData.adresse}
+	services={services}
+>
+	<section class="page-hero">
+		<div class="section-inner">
+			<p class="eyebrow">Kundenstorys</p>
+			<h1>Das sagen unsere Kunden</h1>
+			<p class="section-sub">Erfahrungsberichte von Unternehmen und Privatkunden, die uns vertrauen.</p>
+		</div>
+	</section>
+
+	<section class="story-list">
+		<div class="section-inner">
+			{storys.length === 0 && <p class="empty">Noch keine Kundenstorys vorhanden.</p>}
+			<div class="story-grid">
+				{storys.map((story) => (
+					<article class="story-card">
+						{story.datum && <p class="story-date">{story.datum}</p>}
+						<h2>{story.kundenname}</h2>
+						{story.branche && <p class="story-branche">{story.branche}</p>}
+						<div class="story-content" set:html={story.storyHtml} />
+					</article>
+				))}
+			</div>
+		</div>
+	</section>
+</SiteLayout>
+
+<style>
+	.page-hero {
+		background: linear-gradient(160deg, #ffffff 0%, var(--color-mint-light) 100%);
+	}
+
+	.page-hero h1 {
+		font-size: 2.25rem;
+		text-align: center;
+		margin-bottom: 1rem;
+	}
+
+	.story-list {
+		background: var(--color-white);
+	}
+
+	.empty {
+		text-align: center;
+		color: #3c4a63;
+	}
+
+	.story-grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 1.5rem;
+	}
+
+	.story-card {
+		background: var(--color-bg-light);
+		padding: 2rem;
+		border-radius: 16px;
+	}
+
+	.story-date {
+		color: var(--color-mint);
+		font-weight: 700;
+		font-size: 0.85rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		margin-bottom: 0.5rem;
+	}
+
+	.story-card h2 {
+		font-size: 1.3rem;
+		margin-bottom: 0.25rem;
+	}
+
+	.story-branche {
+		color: var(--color-mint);
+		font-weight: 600;
+		font-size: 0.9rem;
+		margin-bottom: 1rem;
+	}
+
+	.story-content {
+		color: #3c4a63;
+	}
+
+	.story-content :global(p) {
+		margin-bottom: 0.75rem;
+	}
+
+	@media (min-width: 768px) {
+		.page-hero h1 {
+			font-size: 2.75rem;
+		}
+
+		.story-grid {
+			grid-template-columns: repeat(2, 1fr);
+		}
+	}
+</style>

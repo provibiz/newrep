@@ -3,6 +3,7 @@ export const prerender = false;
 
 import { createBucketClient } from "@cosmicjs/sdk";
 import { marked } from "marked";
+import SiteLayout from "../layouts/SiteLayout.astro";
 
 const runtimeEnv = Astro.locals.runtime?.env ?? import.meta.env;
 const cosmic = createBucketClient({
@@ -10,26 +11,118 @@ const cosmic = createBucketClient({
   readKey: runtimeEnv.COSMIC_READ_KEY,
 });
 
-const { objects: posts } = await cosmic.objects
+const { object: startseite } = await cosmic.objects
+  .findOne({ type: "startseite" })
+  .props("metadata");
+const startseiteData = startseite.metadata;
+
+const { objects: leistungenEntries } = await cosmic.objects
+  .find({ type: "leistungen" })
+  .props("metadata");
+const services = leistungenEntries.map((entry) => ({ title: entry.metadata.titel }));
+
+const { objects: postEntries } = await cosmic.objects
   .find({ type: "blog" })
   .props("metadata")
   .sort("-metadata.veroeffentlicht_am");
+const posts = postEntries.map((entry) => ({
+  titel: entry.metadata.titel,
+  teaser: entry.metadata.teaser,
+  inhaltHtml: marked.parse(entry.metadata.inhalt ?? ""),
+  datum: entry.metadata.veroeffentlicht_am,
+}));
 ---
 
-<html lang="de">
-	<head>
-		<meta charset="UTF-8" />
-		<title>Blog – Test</title>
-	</head>
-	<body>
-		<h1>Blog</h1>
-		{posts.map((post) => (
-			<article>
-				<h2>{post.metadata.titel}</h2>
-				<p><em>{post.metadata.veroeffentlicht_am}</em></p>
-				<p>{post.metadata.teaser}</p>
-				<div set:html={marked.parse(post.metadata.inhalt ?? "")} />
-			</article>
-		))}
-	</body>
-</html>
+<SiteLayout
+	title={`Blog – ${startseiteData.meta_title}`}
+	description="Aktuelles und Tipps rund um Reinigung und Gebäudeservice von GSO."
+	phoneNumber={startseiteData.telefonnummer}
+	email={startseiteData.email}
+	adresse={startseiteData.adresse}
+	services={services}
+>
+	<section class="page-hero">
+		<div class="section-inner">
+			<p class="eyebrow">Blog</p>
+			<h1>Aktuelles von GSO</h1>
+			<p class="section-sub">Tipps, News und Einblicke rund um Reinigung und Gebäudeservice.</p>
+		</div>
+	</section>
+
+	<section class="post-list">
+		<div class="section-inner">
+			{posts.length === 0 && <p class="empty">Noch keine Beiträge vorhanden.</p>}
+			{posts.map((post) => (
+				<article class="post-card">
+					{post.datum && <p class="post-date">{post.datum}</p>}
+					<h2>{post.titel}</h2>
+					<p class="post-teaser">{post.teaser}</p>
+					<div class="post-content" set:html={post.inhaltHtml} />
+				</article>
+			))}
+		</div>
+	</section>
+</SiteLayout>
+
+<style>
+	.page-hero {
+		background: linear-gradient(160deg, #ffffff 0%, var(--color-mint-light) 100%);
+	}
+
+	.page-hero h1 {
+		font-size: 2.25rem;
+		text-align: center;
+		margin-bottom: 1rem;
+	}
+
+	.post-list {
+		background: var(--color-bg-light);
+	}
+
+	.empty {
+		text-align: center;
+		color: #3c4a63;
+	}
+
+	.post-card {
+		background: var(--color-white);
+		padding: 2rem;
+		border-radius: 16px;
+		box-shadow: 0 2px 8px rgba(15, 32, 68, 0.06);
+		margin-bottom: 1.5rem;
+	}
+
+	.post-date {
+		color: var(--color-mint);
+		font-weight: 700;
+		font-size: 0.85rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		margin-bottom: 0.5rem;
+	}
+
+	.post-card h2 {
+		font-size: 1.4rem;
+		margin-bottom: 0.5rem;
+	}
+
+	.post-teaser {
+		color: #3c4a63;
+		font-weight: 500;
+		margin-bottom: 1rem;
+	}
+
+	.post-content {
+		color: #3c4a63;
+	}
+
+	.post-content :global(p) {
+		margin-bottom: 0.75rem;
+	}
+
+	@media (min-width: 768px) {
+		.page-hero h1 {
+			font-size: 2.75rem;
+		}
+	}
+</style>

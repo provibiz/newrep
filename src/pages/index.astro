@@ -3,6 +3,7 @@ export const prerender = false;
 
 import { createBucketClient } from "@cosmicjs/sdk";
 import { marked } from "marked";
+import SiteLayout from "../layouts/SiteLayout.astro";
 
 const runtimeEnv = Astro.locals.runtime?.env ?? import.meta.env;
 const cosmic = createBucketClient({
@@ -105,8 +106,6 @@ const icons: Record<string, string> = {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.4-7-12a7 7 0 1 1 14 0c0 5.6-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>',
   users:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
-  clock:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>',
   sparkle:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>',
   broom:
@@ -134,50 +133,15 @@ function iconSvg(name: string): string {
 }
 ---
 
-<html lang="de">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<title>{startseiteData.meta_title}</title>
-		<meta name="description" content={startseiteData.meta_description} />
-		<meta name="generator" content={Astro.generator} />
-		<link rel="preconnect" href="https://fonts.googleapis.com" />
-		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-		<link
-			href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&display=swap"
-			rel="stylesheet"
-		/>
-	</head>
-	<body>
-		<header class="site-header">
-			<nav class="navbar">
-				<a href="#top" class="logo">
-					<span class="logo-main">GSO</span>
-					<span class="logo-sub">Gebäude-Service<br /><small>Konstanz &middot; Bodensee</small></span>
-				</a>
-
-				<input type="checkbox" id="nav-toggle" class="nav-toggle" />
-				<label for="nav-toggle" class="nav-toggle-label" aria-label="Menü öffnen">
-					<span></span>
-					<span></span>
-					<span></span>
-				</label>
-
-				<div class="nav-links">
-					<a href="#top">Start</a>
-					<a href="#leistungen">Leistungen</a>
-					<a href="#ueber-uns">Über uns</a>
-					<a href="#kontakt">Kontakt</a>
-					<a href={phoneHref} class="nav-phone">
-						<span set:html={iconSvg("clock")} class="nav-phone-icon" />
-						{phoneNumber}
-					</a>
-				</div>
-			</nav>
-		</header>
-
-		<main id="top">
+<SiteLayout
+	title={startseiteData.meta_title}
+	description={startseiteData.meta_description}
+	phoneNumber={phoneNumber}
+	email={email}
+	adresse={startseiteData.adresse}
+	services={services}
+>
+	<div id="top">
 			<!-- HERO -->
 			<section class="hero">
 				<div class="hero-inner">
@@ -309,276 +273,10 @@ function iconSvg(name: string): string {
 					</div>
 				</div>
 			</section>
-		</main>
-
-		<footer id="kontakt" class="site-footer">
-			<div class="section-inner footer-inner">
-				<div class="footer-col">
-					<h3 class="footer-logo">GSO Gebäude-Service</h3>
-					<p>
-						Professionelle Gebäudereinigung in Konstanz und am Bodensee. Gründlich,
-						zuverlässig und preiswert – bei Ihnen zuhause oder im Büro.
-					</p>
-				</div>
-				<div class="footer-col">
-					<h3>Leistungen</h3>
-					{services.map((service) => (
-						<p><a href="#leistungen">{service.title}</a></p>
-					))}
-				</div>
-				<div class="footer-col">
-					<h3>Unternehmen</h3>
-					<p><a href="#ueber-uns">Über uns</a></p>
-					<p><a href="#kontakt">Kontakt</a></p>
-					<p><a href="#leistungen">Alle Leistungen</a></p>
-				</div>
-				<div class="footer-col">
-					<h3>Kontakt</h3>
-					<p><a href={phoneHref}>{phoneNumber}</a></p>
-					<p><a href={`mailto:${email}`}>{email}</a></p>
-					<p><a href={whatsappHref}>WhatsApp Chat</a></p>
-					<p>{startseiteData.adresse}</p>
-				</div>
-			</div>
-			<div class="footer-bottom">
-				<p>
-					&copy; {new Date().getFullYear()} GSO Gebäude-Service &middot; Konstanz &middot;
-					Alle Rechte vorbehalten &middot; <a href="#">Datenschutz</a> &middot;
-					<a href="#">Impressum</a>
-				</p>
-			</div>
-		</footer>
-	</body>
-</html>
+	</div>
+</SiteLayout>
 
 <style>
-	:root {
-		--color-navy: #0f2044;
-		--color-navy-light: #1a2f5c;
-		--color-orange: #e85d04;
-		--color-mint: #14b8a6;
-		--color-mint-light: #ecfdf9;
-		--color-whatsapp: #25d366;
-		--color-bg-light: #f4f6f8;
-		--color-white: #ffffff;
-		--font-main: "Plus Jakarta Sans", sans-serif;
-	}
-
-	* {
-		margin: 0;
-		padding: 0;
-		box-sizing: border-box;
-	}
-
-	html {
-		scroll-behavior: smooth;
-	}
-
-	body {
-		font-family: var(--font-main);
-		font-weight: 400;
-		color: var(--color-navy);
-		background: var(--color-white);
-		line-height: 1.6;
-	}
-
-	h1,
-	h2,
-	h3 {
-		font-weight: 800;
-		line-height: 1.2;
-		color: var(--color-navy);
-	}
-
-	a {
-		text-decoration: none;
-		color: inherit;
-	}
-
-	ul {
-		list-style: none;
-	}
-
-	.section-inner {
-		max-width: 1200px;
-		margin: 0 auto;
-		padding: 4rem 1.5rem;
-	}
-
-	.eyebrow {
-		color: var(--color-mint);
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		font-size: 0.85rem;
-		text-align: center;
-		margin-bottom: 0.75rem;
-	}
-
-	.section-sub {
-		text-align: center;
-		max-width: 640px;
-		margin: 0 auto 3rem;
-		color: #3c4a63;
-	}
-
-	.text-mint {
-		color: var(--color-mint);
-	}
-
-	/* Buttons */
-	.btn {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0.5rem;
-		padding: 0.9rem 1.8rem;
-		border-radius: 999px;
-		font-weight: 700;
-		font-size: 1rem;
-		transition: transform 0.15s ease, opacity 0.15s ease;
-		text-align: center;
-	}
-
-	.btn:hover {
-		transform: translateY(-2px);
-		opacity: 0.92;
-	}
-
-	.btn-icon,
-	.link-arrow {
-		display: inline-flex;
-	}
-
-	.btn-icon :global(svg),
-	.link-arrow :global(svg) {
-		width: 18px;
-		height: 18px;
-	}
-
-	.btn-primary {
-		background: var(--color-orange);
-		color: var(--color-white);
-	}
-
-	.btn-outline {
-		background: transparent;
-		border: 2px solid var(--color-navy);
-		color: var(--color-navy);
-	}
-
-	.btn-light {
-		background: var(--color-white);
-		color: var(--color-navy);
-	}
-
-	.btn-whatsapp {
-		background: var(--color-whatsapp);
-		color: var(--color-white);
-	}
-
-	/* Header / Nav */
-	.site-header {
-		position: sticky;
-		top: 0;
-		z-index: 100;
-		background: var(--color-white);
-		border-bottom: 1px solid #e3e7ec;
-	}
-
-	.navbar {
-		max-width: 1200px;
-		margin: 0 auto;
-		padding: 1rem 1.5rem;
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		position: relative;
-	}
-
-	.logo {
-		display: flex;
-		align-items: baseline;
-		gap: 0.5rem;
-	}
-
-	.logo-main {
-		font-weight: 800;
-		font-size: 1.5rem;
-		color: var(--color-navy);
-	}
-
-	.logo-sub {
-		font-weight: 700;
-		font-size: 0.85rem;
-		color: var(--color-navy);
-		line-height: 1.2;
-	}
-
-	.logo-sub small {
-		font-weight: 500;
-		font-size: 0.65rem;
-		color: var(--color-mint);
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-	}
-
-	.nav-toggle {
-		display: none;
-	}
-
-	.nav-toggle-label {
-		display: none;
-		flex-direction: column;
-		gap: 5px;
-		cursor: pointer;
-		z-index: 110;
-	}
-
-	.nav-toggle-label span {
-		width: 26px;
-		height: 3px;
-		background: var(--color-navy);
-		border-radius: 2px;
-	}
-
-	.nav-links {
-		display: flex;
-		align-items: center;
-		gap: 2rem;
-		font-weight: 500;
-	}
-
-	.nav-links a {
-		color: var(--color-navy);
-		transition: color 0.15s ease;
-	}
-
-	.nav-links a:hover {
-		color: var(--color-mint);
-	}
-
-	.nav-phone {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.4rem;
-		background: var(--color-navy);
-		color: var(--color-white) !important;
-		font-weight: 700;
-		padding: 0.6rem 1.2rem;
-		border-radius: 999px;
-	}
-
-	.nav-phone:hover {
-		color: var(--color-white) !important;
-		opacity: 0.9;
-	}
-
-	.nav-phone-icon :global(svg) {
-		width: 16px;
-		height: 16px;
-	}
-
 	/* Hero */
 	.hero {
 		background: linear-gradient(160deg, #ffffff 0%, var(--color-mint-light) 100%);
@@ -869,55 +567,6 @@ function iconSvg(name: string): string {
 		gap: 1rem;
 	}
 
-	/* Footer */
-	.site-footer {
-		background: var(--color-navy);
-		color: var(--color-white);
-	}
-
-	.footer-inner {
-		display: grid;
-		grid-template-columns: 1fr;
-		gap: 2.5rem;
-		padding-bottom: 2rem;
-	}
-
-	.footer-col h3 {
-		color: var(--color-white);
-		font-size: 1.05rem;
-		margin-bottom: 1rem;
-	}
-
-	.footer-logo {
-		font-size: 1.2rem;
-	}
-
-	.footer-col p {
-		color: #c2c9d6;
-		margin-bottom: 0.5rem;
-		font-size: 0.9rem;
-	}
-
-	.footer-col a:hover {
-		color: var(--color-mint);
-	}
-
-	.footer-bottom {
-		border-top: 1px solid rgba(255, 255, 255, 0.15);
-		text-align: center;
-		padding: 1.5rem;
-		font-size: 0.85rem;
-		color: #9aa4b8;
-	}
-
-	.footer-bottom a {
-		color: #9aa4b8;
-	}
-
-	.footer-bottom a:hover {
-		color: var(--color-mint);
-	}
-
 	/* Tablet */
 	@media (min-width: 768px) {
 		.hero-text h1 {
@@ -934,10 +583,6 @@ function iconSvg(name: string): string {
 
 		.process-grid {
 			grid-template-columns: repeat(3, 1fr);
-		}
-
-		.footer-inner {
-			grid-template-columns: repeat(2, 1fr);
 		}
 
 		.cta-inner {
@@ -967,49 +612,6 @@ function iconSvg(name: string): string {
 
 		.why-grid {
 			grid-template-columns: repeat(4, 1fr);
-		}
-
-		.footer-inner {
-			grid-template-columns: repeat(4, 1fr);
-		}
-	}
-
-	/* Mobile nav (CSS-only hamburger) */
-	@media (max-width: 1023px) {
-		.nav-toggle-label {
-			display: flex;
-		}
-
-		.nav-links {
-			position: absolute;
-			top: 100%;
-			left: 0;
-			right: 0;
-			background: var(--color-white);
-			flex-direction: column;
-			align-items: flex-start;
-			gap: 0;
-			max-height: 0;
-			overflow: hidden;
-			transition: max-height 0.3s ease;
-			border-bottom: 1px solid #e3e7ec;
-		}
-
-		.nav-links a {
-			width: 100%;
-			padding: 1rem 1.5rem;
-			border-top: 1px solid #eef0f3;
-		}
-
-		.nav-phone {
-			width: calc(100% - 3rem);
-			margin: 0.5rem 1.5rem;
-			justify-content: center;
-			border-top: none !important;
-		}
-
-		.nav-toggle:checked ~ .nav-links {
-			max-height: 600px;
 		}
 	}
 </style>
