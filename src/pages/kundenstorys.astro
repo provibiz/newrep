@@ -1,0 +1,34 @@
+---
+export const prerender = false;
+
+import { createBucketClient } from "@cosmicjs/sdk";
+import { marked } from "marked";
+
+const runtimeEnv = Astro.locals.runtime?.env ?? import.meta.env;
+const cosmic = createBucketClient({
+  bucketSlug: runtimeEnv.COSMIC_BUCKET_SLUG,
+  readKey: runtimeEnv.COSMIC_READ_KEY,
+});
+
+const { objects: storys } = await cosmic.objects
+  .find({ type: "kundenstorys" })
+  .props("metadata")
+  .sort("-metadata.veroeffentlicht_am");
+---
+
+<html lang="de">
+	<head>
+		<meta charset="UTF-8" />
+		<title>Kundenstorys – Test</title>
+	</head>
+	<body>
+		<h1>Kundenstorys</h1>
+		{storys.map((story) => (
+			<article>
+				<h2>{story.metadata.kundenname}</h2>
+				<p><em>{story.metadata.branche} · {story.metadata.veroeffentlicht_am}</em></p>
+				<div set:html={marked.parse(story.metadata.story ?? "")} />
+			</article>
+		))}
+	</body>
+</html>

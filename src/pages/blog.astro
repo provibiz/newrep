@@ -1,0 +1,35 @@
+---
+export const prerender = false;
+
+import { createBucketClient } from "@cosmicjs/sdk";
+import { marked } from "marked";
+
+const runtimeEnv = Astro.locals.runtime?.env ?? import.meta.env;
+const cosmic = createBucketClient({
+  bucketSlug: runtimeEnv.COSMIC_BUCKET_SLUG,
+  readKey: runtimeEnv.COSMIC_READ_KEY,
+});
+
+const { objects: posts } = await cosmic.objects
+  .find({ type: "blog" })
+  .props("metadata")
+  .sort("-metadata.veroeffentlicht_am");
+---
+
+<html lang="de">
+	<head>
+		<meta charset="UTF-8" />
+		<title>Blog – Test</title>
+	</head>
+	<body>
+		<h1>Blog</h1>
+		{posts.map((post) => (
+			<article>
+				<h2>{post.metadata.titel}</h2>
+				<p><em>{post.metadata.veroeffentlicht_am}</em></p>
+				<p>{post.metadata.teaser}</p>
+				<div set:html={marked.parse(post.metadata.inhalt ?? "")} />
+			</article>
+		))}
+	</body>
+</html>
