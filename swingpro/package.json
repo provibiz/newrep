@@ -1,0 +1,23 @@
+{
+  "name": "swingpro",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "replay": "tsx scripts/replay.ts",
+    "dev": "wrangler dev --test-scheduled",
+    "deploy": "wrangler deploy",
+    "migrate:remote": "wrangler d1 migrations apply swingpro --remote",
+    "migrate:local": "wrangler d1 migrations apply swingpro --local"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "*",
+    "@types/node": "^26.6.7",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "wrangler": "^4.0.0"
+  }
+}

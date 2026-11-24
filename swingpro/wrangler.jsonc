@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "swingpro",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  // Cron-Läufe mit größerem Universum brauchen mehr als die 30 s Standard-CPU (Workers Paid; Maximum laut Doku 5 min)
+  "limits": { "cpu_ms": 120000 },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "swingpro", "database_id": "HIER_NACH_wrangler_d1_create_EINTRAGEN", "migrations_dir": "migrations" }
+  ],
+  "triggers": {
+    // UTC. 13–21 Uhr deckt die US-Handelszeit in Sommer- und Winterzeit ab; Handelstage/-zeiten prüft der Code.
+    "crons": ["1,6,11,16,21,26,31,36,41,46,51,56 13-21 * * 1-5", "*/10 21-23 * * 1-5"]
+  },
+  "vars": {
+    "MODE": "paper",
+    "DATA_FEED": "iex",
+    "DAILY_FEED": "sip",
+    "ACCOUNT_CURRENCY": "USD",
+    "CAPITAL": "10000",
+    "RISK_PERCENT": "0.5",
+    "MAX_WEIGHT_PERCENT": "25",
+    "MAX_OPEN_RISK_PERCENT": "3",
+    "MAIL_FROM": "",
+    "MAIL_TO": "",
+    "BASE_URL": ""
+  }
+}

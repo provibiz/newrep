@@ -1,0 +1,11 @@
+services:
+  swingalarm:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      STATE_DIR: /state
+    volumes:
+      - signale:/state
+volumes:
+  signale:
