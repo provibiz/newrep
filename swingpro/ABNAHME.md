@@ -1,50 +1,43 @@
 # Abnahmeliste (ehrlicher Stand)
 
-Funktionierende Software und statistische Profitabilität sind getrennt zu lesen. **Zur Profitabilität gibt es keine Aussage:** Kein Backtest, keine Statistik. Die Regeln sind Modellannahmen (`REGELN.md`). Historische Revisionen der Datenanbieter machen aktuelle Schnittstellen für ungeprüfte Historienvergleiche ungeeignet.
+Funktionierende Software und statistische Profitabilität sind getrennt zu lesen. **Zur Profitabilität gibt es keine Aussage:** kein Backtest, keine Statistik. Die Regeln sind Modellannahmen (`REGELN.md`).
 
-## A. Lokal getestet (112 Tests, `npm test`, kein Netzwerk, Fixtures/Mocks)
-- Alle sieben Setups: positive und negative Fälle (`test/patterns.test.ts`; Episodic Pivot in `test/episodic-universe.test.ts`), Base’n Break vs. Base Breakout unterscheidbar.
-- Vorbereitet-vs.-ausgelöst: Auslöser nur aus **abgeschlossenen** 5-Minuten-Kerzen; offene Kerze zählt nicht; Stundenschluss-Setup (Episodic Pivot) löst nicht vor 10:30 aus; Volumen-Hochrechnung nicht vor 15 Min.
-- Kein Zukunftswissen: Earnings-Kalenderdatum des Gap-Tages ohne belegte Zeit wird verworfen; Wochentief erst nach zwei abgeschlossenen Folgewochen; S&P-Werte nach dem Bewertungstag werden ignoriert.
-- Gesamtweg mit Mock-Anbietern: Tageslauf → Stundenscan/Vorwarnung → 5-Minuten-Auslöser → Kurs-/Stoppprüfung → Mail → Kaufbestätigung per Link → +2R-Empfehlung → Erfassung des Teilverkaufs → Wochentief-Stopp → Kursgap → Ausstieg → Ergebnis.
-- Verpasster Einstieg, alter/fehlender Kurs, Mailausfall (verspätete Einstiegsmail wird verworfen), kurzer Ausfall (genau eine Mail), doppelte Cron-Läufe, Neustart (neue Objekte, gleiche DB), Paper-Modus (keine Mail, keine Annahme behauptet), QQQ-Filter-Modi, SIP ohne Rechte (gesperrt, keine Umschaltung), fehlende QQQ-Daten (Lauf scheitert sichtbar).
-- Splits (Reihe neu geladen, Position markiert), Symbolwechsel, Feiertage/verkürzte Sitzungen (13:00), Sommerzeit-Abweichungswochen Berlin–New York.
-- Link-Sicherheit: GET speichert nichts; POST ohne ausdrückliche Bestätigung → 400; doppeltes Absenden idempotent; Status geschützt.
-- Last: 400 Titel im Stundenscan → < 150 D1-Abfragen (D1-Batch = 1 Abfrage), ≤ 10 Datenabrufe; zweiter Lauf inkrementell.
-- `wrangler deploy --dry-run` bündelt den Worker fehlerfrei.
-
-- **Abnahmefälle aus dem Report vom 25.11.2026** (`test/siebenhaar-2026-11-25.test.ts`, Kursmarken nur in `test/fixtures/siebenhaar.ts`, nachgebaute Testdaten):
-  - *Crocs*: weder Zahlenmeldung noch Gap-Tag noch die Tage danach bereiten den Einstieg vor; Trigger über 160 am Inside Day; Stopp-Bezug (Tagestief des Inside Days vom 24.11.) ausgewiesen und als Modellannahme dokumentiert.
-  - *Sartorius*: Trigger über 298 EUR, 300 EUR nur Kontext; „Markt nicht unterstützt“ (Anbieter, Kennung, Handelsplatz, Kalender, Währung); kein US-Ersatzkurs für den EUR-Trigger.
-  - *Illumina*: Rücklauf nur Vorbereitung → Seitwärtsphase → Rückeroberung EMA10/EMA20; Stopp unter dem Konsolidierungstief; Seitwärtstage und Bestätigungsart konfigurierbar; EMA-Reclaim ≠ EMA-Crossback.
-  - *„Trigger erreicht, Depot bleibt in Cash“*: Betreff „Nur beobachten · …“, Grund in Mail, **kein Kauf-Link, keine Position, kein Token**; keine Wiederholung am selben Tag; nach Änderung der Marktvorgabe kann derselbe Trigger zulässig werden.
-  - Drei Entscheidungsstufen getrennt gespeichert und angezeigt; Modell-Kennzeichnung; Watchlist-Idee ≠ Trade; Marktlage (Breite, Führung, FTD, verkürzte Woche) mit Universum, Zeitraum, Quelle und ohne Freigabe-Schwelle.
+## A. Lokal getestet (166 Tests, `npm test`, kein Netzwerk, Mocks und nachgebaute Testdaten)
+- **Setups:** alle sieben Siebenhaar-Muster (positiv/negativ), Base’n Break ≠ Base Breakout, drei Tages-Pfade (Konsolidierung nach Quartalszahlen, mehrwöchige Basis, EMA-Reclaim ≠ EMA-Crossback; Rücktest = Vorwarnung, Einstieg gesperrt bis zur Stabilisierung), Vorbereitet → Trigger (abgeschlossene 5-Minuten-Kerze; Stunden-/Tagesschluss-Setups nicht früher) → Zulässigkeit.
+- **Kein Zukunftswissen:** Katalysator nur mit belegter Veröffentlichungszeit, Wochentief erst nach zwei abgeschlossenen Folgewochen, Blindlauf-Anbieter gibt nichts nach dem Stichtag preis.
+- **Cash → offen:** Trigger in „cash“ → „Nur beobachten“; danach „offen“: Kurs weggelaufen → „Einstieg verpasst“ (eine Mail), sonst **genau eine** Einstiegsmail; Setup inzwischen ungültig → keine Mail. Gesperrte/verpasste Signale enthalten keinen Kauf-Link und legen keine Position an.
+- **Marktvorgabe:** automatisch (Breite, Anteil über SMA50, Wachstumsführung, S&P vs. SMA200; FTD gibt nie frei), veraltete Daten → Cash, Schwellen konfigurierbar, manuelle Vorgabe nur mit Begründung + Ablauf, Rückfall nach Ablauf; Integrationstest bärisch → „Nur beobachten“ mit automatischen Gründen → später zulässig ohne Formular.
+- **Stoppweite:** Standard 10 %: synthetischer Illumina-Fall (Stopp > 10 %) → „Nur beobachten · Risikoregel Stopp …“, einmal je Setup, kein Link. Verlorener Swing wird nicht umgedeutet, Stopp nicht gesenkt.
+- **Gmail:** Token-Erneuerung, RFC-2822/UTF-8-Betreff, nur `gmail.send` (zu weiter Scope wird abgelehnt), `invalid_grant` → Warteschlange + Statusmeldung, abgelaufene Einstiegsmails verworfen, atomares Beanspruchen gegen Doppelversand, unklarer Ausgang → keine Wiederholung, Kopfzeilen-Injektion verhindert, keine Secrets in Fehlertexten.
+- **Märkte:** Xetra-Kalender (Feiertage 2026/27, 30.12. verkürzt, Sommer-/Winterzeit), Aktiengattung/ISIN/Währung, ETF-/Fremdwährungs-/Duplikat-Ausschluss, Indexabdeckung je Index (inkl. „Quelle fehlt“, nicht zuordenbar, außerhalb der Indizes), Mehrfachmitgliedschaft → ein Alarm, deutscher Vormittagsscan (US idle, Xetra löst auf EUR-Kurs aus), USD-Kurs für EUR-Trigger abgelehnt, fehlender Zugang → genaue Lücke + Tarif, FX-Pflicht, Xetra-Berechtigungsprobe.
+- **Eigenständigkeit:** Blindlauf mit nachgebauten Daten (Crocs/Illumina/Sartorius-Formen werden ohne Suchziel gefunden; Auswertung erst danach), **Gegenproben** (gleiche Formation anderer Ticker/Kursniveau erkannt; Ticker ohne Formation und Ticker mit zu kurzer Konsolidierung → kein Alarm), Quellcode enthält keine Ticker/Kursmarken der Beispiele.
+- **Paper-Protokoll:** getrennte Zeitstempel, Kandidaten/Marken vor dem Trigger gespeichert, `candidate_log` per Trigger unveränderlich, Statusseite zeigt „Annahme ≠ Eingang“.
+- Last: 400 Titel im Stundenscan < 150 D1-Abfragen; `wrangler deploy --dry-run` bündelt fehlerfrei.
 
 ## B. Mit echten Daten getestet
-**Nichts.** Es lagen keine Schlüssel vor. Die Doku-Seiten wurden gelesen (siehe `ZUGAENGE.md`), die FRED-CSV-Form (Kopfzeile `observation_date,SP500`, leere Werte an Feiertagen) wurde laut Recherche bestätigt, aber der Parser lief nicht gegen die echte Datei.
+**Nichts.** Es lagen keine Schlüssel/Zugänge vor. Der **historische Blindlauf mit Echtdaten wurde nicht ausgeführt** (Blocker: Alpaca-Schlüssel; für Deutschland zusätzlich Xetra-Zugang). Das Werkzeug existiert (`scripts/blindrun.ts --live`); es nutzt das **heutige** Instrumentenverzeichnis und weist deshalb ausdrücklich **keinen** historischen Echtdaten-Nachweis aus. Für Crocs, Illumina und Sartorius gibt es **keinen** Echtdaten-Nachweis; die Fixtures sind nachgebaute Formen.
 
 ## C. Auf Cloudflare getestet
-**Nichts.** Kein Deploy, keine D1-Datenbank, kein Cron-Lauf, keine Resend-Mail.
+**Nichts.** Kein Deploy, keine D1-Datenbank, kein Cron-Lauf, keine Gmail-Mail.
 
-## D. Offen – genau diese Live-Tests und Zugangsdaten fehlen
+## D. Offen – Live-Prüfungen
 | Offen | Benötigt | Risiko, falls abweichend |
 |---|---|---|
-| Alpaca: Antwortformate von `/v2/stocks/snapshots` (Top-Level-Map oder `snapshots`), `bars` mit 30Min/5Min/1Day, Zeitstempel = Kerzenbeginn (Doku nennt es nicht ausdrücklich), SIP-Tageskerzen im Free-Tarif | Alpaca-Paper-Schlüssel | Parser/Zeitfenster anpassen; die Probe auf der Statusseite deckt Zugriffsfehler auf |
-| IEX-5-Minuten-Kerzen bei dünn gehandelten Titeln (Lücken = keine Trades) | Alpaca-Schlüssel, Handelszeit | Auslöser seltener; „Datenlücke“ zählt |
-| FMP: `income-statement` (Felder `filingDate`, `epsDiluted`, `period`, `fiscalYear`, `reportedCurrency`) und `earnings-calendar` (Free-Tarif? Felder `epsActual`) | FMP-Schlüssel (Free oder bezahlt) | Wachstum bleibt „offen“, Episodic Pivot bleibt aus – Signale bleiben möglich |
-| Resend: Domain-Verifizierung, Idempotency-Key-Verhalten bei Wiederholung | Resend-Schlüssel + Domain | Mails scheitern sichtbar (`failed`/`rejected` auf der Statusseite) |
-| Cloudflare: Cron-Taktung bei `1,6,11,…`, CPU-Zeit des Tageslaufs (`limits.cpu_ms: 120000`), erste Befüllung über mehrere Läufe, D1-Batchgrößen | Cloudflare-Konto (Workers Paid) | Erste Nacht(en) beobachten; Läufe sind fortsetzbar und idempotent |
-| SIP in Echtzeit (nur mit Algo Trader Plus) | Bezahlter Alpaca-Tarif | Ohne Rechte bleibt der Dienst auf IEX |
-| Zustellzeit der Mails im Postfach | – (nicht messbar) | Es wird nur die **Annahme durch Resend** protokolliert |
-| Paper-Phase mit echten Daten über mehrere Wochen | alle oben | Erst danach `MODE=live` |
+| Gmail: OAuth-Einrichtung, „In production“-Verhalten unverifizierter App, echter Versand, Eingang auf dem Handy | Google-Cloud-Projekt, OAuth-Client, Freigabe durch dich | Mails bleiben in der Warteschlange; Statusseite zeigt Problem |
+| Alpaca: Formate von `bars`/`snapshots`, Kerzenzeit = Beginn, SIP-Tageskerzen im Free-Tarif | Alpaca-Paper-Schlüssel | Parser/Zeitfenster anpassen; Probe zeigt Zugriffsfehler |
+| Xetra: Twelve-Data-Endpunkte/Felder, 5-Minuten-Kerzen und Echtzeit für XETR im gebuchten Tarif, Rate-Limits (Grow: 55 Credits/Min), ISIN-Verfügbarkeit | Twelve-Data-Schlüssel mit passendem Tarif (voraussichtlich Pro) | Deutscher Scan bleibt aus bzw. verzögert; Berechtigungsprobe zeigt es |
+| Xetra-Kalender gegen den offiziellen PDF-Kalender, Zeiten des 30.12. | – | falsche Handelstage |
+| Indexlisten für S&P 400/600, Nasdaq-100, DAX/MDAX/SDAX/TecDAX (Quelle, Lizenz, Format) | je Index eine CSV-Quelle in `INDEX_SOURCES` | Abdeckung „Quelle fehlt“ |
+| FMP: Felder `income-statement`/`earnings`, Free-Tarif, Xetra-Abdeckung | FMP-Schlüssel | Wachstum „offen“, Konsolidierung nach Zahlen ohne Katalysator-Daten aus |
+| Historischer Blindlauf mit Echtdaten (heutiges Verzeichnis, daher kein Nachweis) und mit zeitpunktgenauem Universum (archivierter Bestand nötig) | Alpaca-Schlüssel, Archivdaten | – |
+| Cloudflare: Cron-Takt `7–21 UTC`, CPU-Zeit, erste Befüllung über mehrere Läufe (je Markt), D1-Batchgrößen | Cloudflare Workers Paid | erste Nächte beobachten; Läufe sind fortsetzbar und idempotent |
+| Vorwärts-Paper-Betrieb über mehrere Wochen | alle oben | erst danach `MODE=live` |
 
-## E. Bekannte Einschränkungen (Design)
-- Nur **Long**, nur USD-Handel; EUR nur mit dokumentiertem Wechselkurs.
-- Episodic Pivot nur mit **Quartalszahlen**; kein Nachrichten-/Pressemitteilungs-Scan.
-- Tageschart-Setups nutzen größere Spannen, die ungeprüfte Modellannahmen sind.
-- Die drei Fälle aus dem Report sind **nachgebaute Formationen**, keine Original-Kursdaten. Mit echten Kursverläufen von Crocs, Sartorius und Illumina wurde nicht getestet; offen bleibt, ob die Modellannahmen (Mindesttage, Spannen, EMA-Regeln) die echten Charts erfassen.
-- Die Marktbreite des Systems ist nicht identisch mit der Statistik der Quelle (andere Universum-Abgrenzung); die Zahlen 123/465 sind nur Testdaten.
-- Sartorius und andere Xetra-Titel bleiben „Markt nicht unterstützt“, bis ein Datenanbieter, ein Xetra-Handelskalender und EUR-Handelsrechnung angebunden sind.
-- Ein generisches Tages-Base’n-Break kann in den Tagen direkt nach einer Kurslücke vor dem Inside-Day-Einstieg vorbereitet werden (anderes Setup, eigene Meldung).
-- Außerplanmäßige Börsenschließungen erkennt nur der `/v2/clock`-Abgleich im Live-Betrieb.
-- Die Beschränkung auf 400 überwachte Titel (`MAX_WATCH`) ist eine Subrequest-Entscheidung, keine Marktaussage.
+## E. Bekannte Einschränkungen
+- Nur **Long**. Handelswährungen USD und EUR; Umrechnung nur mit dokumentiertem Kurs.
+- Xetra: nur Tages-Setups (5-Minuten-Trigger), kein Stunden-Scan, kein Episodic Pivot, kein Wachstumsurteil (FMP-Abdeckung nicht verifiziert), kein Führungsgruppen-/Index-Erholungsversuch (keine Daten angebunden).
+- Die Beispiele aus dem Report sind **nachgebaute Formen**; ob die Modellannahmen (Mindesttage, Spannen, EMA-Regeln) die echten Charts erfassen, ist offen.
+- Marktbreite des Systems ≠ Statistik der Quelle (anderes Universum); 123/465 sind nur Testdaten.
+- Ein generisches Tages-Base’n-Break kann nach einer Kurslücke vor dem Inside-Day-Einstieg ein eigenes Setup vorbereiten (eigene Meldung).
+- Die Schwellen der automatischen Marktvorgabe sind ungeprüfte Modellannahmen; fehlende Daten zählen vorsichtig als bärisch/Cash.
+- Außerplanmäßige Börsenschließungen erkennt nur der US-`/v2/clock`-Abgleich; Xetra hat keinen.

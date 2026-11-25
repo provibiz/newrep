@@ -55,9 +55,31 @@ async function scenario(kind: "normal" | "missed" | "watch") {
   void run;
 }
 
+async function xetraExample() {
+  const F = await import("../test/fixtures/siebenhaar");
+  const { FakeDeData } = await import("../src/replay/fakes");
+  const { runIntraday } = await import("../src/jobs/intraday");
+  const { xetraSession } = await import("../src/markets");
+  const db = createDb(), mail = new FakeMail(), de = new FakeDeData();
+  de.assetList = [{ key: "XETR:SRT3", symbol: "SRT3", name: "Sartorius AG Vz.", mic: "XETR", currency: "EUR", isin: F.SRT_ISIN, type: "Preferred Stock" }];
+  de.daily.set("XETR:SRT3", F.toXetra(F.sartoriusDaily()));
+  const cfg = cfgOf({ MODE: "live", MARKETS: "US,DE", FX_USD_PER_EUR: "1.10", FX_DATE: "2026-11-20", FX_SOURCE: "EZB-Referenzkurs (Beispiel)", MIN_RANGE_PCT: "1", MAX_STOP_PCT: "12" });
+  const d = makeDeps(db, cfg, Date.parse("2026-11-24T17:00:00Z"), { mail, de });
+  say(`[TESTDATEN] Xetra: ${await runDaily(d, "DE")}`);
+  const o = xetraSession("2026-11-25")!.open;
+  d.clock.t = o + 41 * MIN + 60_000;
+  const closes = [297.2, 297.4, 297.3, 297.6, 297.5, 297.7, 297.4, 298.15];
+  de.five.set("XETR:SRT3", closes.map((c, i) => ({ end: o + (i + 1) * 5 * MIN, o: i ? closes[i - 1] : c, h: Math.max(c, i ? closes[i - 1] : c) + 0.05, l: Math.min(c, i ? closes[i - 1] : c) - 0.05, c, v: 400 })));
+  de.quoteMap.set("XETR:SRT3", { quote: { price: 298.4, time: d.clock.t - 4000, kind: "last", currency: "EUR" }, sessionOpen: 297.2 });
+  say(`[TESTDATEN] Xetra-Vormittagsscan: ${await runIntraday(d, "DE")}`);
+  block("Xetra: Vorwarnung (Tageschart, EUR)", mail.sent.find((m) => m.subject.startsWith("Vorwarnung"))!);
+  block("Xetra: Einstieg bestätigt (deutscher Vormittag, EUR)", mail.sent.find((m) => m.subject.startsWith("Einstieg"))!);
+}
+
 say("# Beispiel-Mails aus dem Replay (TESTDATEN, erfundene Kurse)\n\nErzeugt mit `npm run replay -- --write docs/BEISPIELMAILS.md`. Adressen und Links sind Platzhalter; Tokens sind nur im Replay gültig.");
 await scenario("normal");
 await scenario("missed");
 await scenario("watch");
+await xetraExample();
 const i = process.argv.indexOf("--write");
 if (i > 0) { writeFileSync(process.argv[i + 1], out.join("\n") + "\n"); console.log("geschrieben:", process.argv[i + 1]); }

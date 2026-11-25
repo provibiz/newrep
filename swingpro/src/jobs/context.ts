@@ -5,6 +5,7 @@ import { sp500Context, type SpContext } from "../market";
 import { growthScore, type GrowthResult } from "../growth";
 import { addDays, nyDate } from "../time";
 import { HttpError } from "../providers";
+import { marketOfKey } from "../markets";
 
 /** S&P 500 gegenüber SMA200. Nur das abgeleitete Ergebnis wird gespeichert (FRED-Nutzungsbedingungen: kein Caching der Rohdaten). */
 export async function spContext(d: Deps): Promise<SpContext> {
@@ -26,6 +27,7 @@ export async function spContext(d: Deps): Promise<SpContext> {
 export async function growthFor(d: Deps, symbol: string): Promise<GrowthResult> {
   const now = d.now(), today = nyDate(now);
   const open = (reason: string): GrowthResult => ({ verdict: "offen", revenuePct: null, epsPct: null, period: null, filingDate: null, reason, text: `Wachstum (Giering-Modell): offen · ${reason}` });
+  if (marketOfKey(symbol) === "DE") return open("Quartalsdaten für Xetra-Titel nicht angebunden (FMP-Abdeckung für Xetra nicht verifiziert) – Setup wird dadurch nicht unterdrückt");
   if (!d.fmp) return open("FMP_API_KEY nicht gesetzt – keine Quartalsdaten");
   const cached = await getMeta<{ day: string; r: GrowthResult }>(d.db, `growth:${symbol}`);
   if (cached && cached.day === today) return cached.r;

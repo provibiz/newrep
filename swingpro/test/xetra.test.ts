@@ -162,7 +162,7 @@ describe("Deutscher Vormittagsscan (Europe/Berlin, EUR)", () => {
     expect(m.text).toMatch(/Kurs 298\.40 EUR/); expect(m.text).toMatch(/Stopp: 291\.49 EUR/); expect(m.text).toMatch(/Wechselkurs: 1 EUR = 1\.1 USD \(EZB-Referenzkurs \(Test\)/);
     expect(m.text).toMatch(/Tagestief des Inside Days vom 2026-11-24/);
     expect(m.text).toMatch(/Kontext \(kein Trigger\): 300\.00 EUR/);                           // die runde Marke bleibt Kontext
-    expect(m.text).toMatch(/QQQ-Filter: gilt nur für US-Titel/);
+    expect(m.text).toMatch(/QQQ-Filter: gilt nur für US-Titel/); expect(m.text).toMatch(/Quartalsdaten für Xetra-Titel nicht angebunden/);   // Wachstum offen, Setup trotzdem sichtbar
     const sig = await one<any>(w.db, "SELECT market, currency, shares, planned_risk_usd, data_available_at, detected_at, signal_time, checked_at FROM signals");
     expect(sig).toMatchObject({ market: "DE", currency: "EUR" });
     expect(sig.shares).toBe(6);                                               // 0,5 % von 10 000 USD = 45,45 EUR → 6 × 6,91 EUR
@@ -191,5 +191,19 @@ describe("Deutscher Vormittagsscan (Europe/Berlin, EUR)", () => {
     expect(() => loadConfig({ MARKETS: "US,DE" })).toThrow(/FX_USD_PER_EUR/);
     expect(loadConfig({ MARKETS: "US" }).markets).toEqual(["US"]);
     expect(() => loadConfig({ MARKETS: "FR" })).toThrow(/MARKETS/);
+  });
+});
+
+describe("Berechtigungsprobe Xetra", () => {
+  it("mit Zugang: Tages-, 5-Minuten-Kerzen und Quote; ohne Zugang: genaue Lücke und Hinweis", async () => {
+    const { runProbe } = await import("../src/jobs/probe");
+    const w = await deWorld({ asof: Date.parse("2026-11-25T08:30:00Z") });
+    w.de.five.set("XETR:SAP", fiveBars(xetraSession("2026-11-25")!.open, [190, 190.1]));
+    w.de.quoteMap.set("XETR:SAP", { quote: { price: 190.2, time: w.d.now() - 60_000, kind: "last", currency: "EUR" }, sessionOpen: 190 });
+    const ok = await runProbe(w.d);
+    expect(ok.xetraDaily!.ok).toBe(true); expect(ok.xetraIntraday!.ok).toBe(true); expect(ok.xetraQuote!.detail).toMatch(/Alter 1 Min \(Handelszeit\)/);
+    const db = createDb(); const d = makeDeps(db, cfgDe(), Date.parse("2026-11-25T08:30:00Z"));
+    const no = await runProbe(d);
+    expect(no.xetraDaily!.ok).toBe(false); expect(no.summary.join(" ")).toMatch(/deutscher Scan ist aus \(keine Buchung, kein US-Ersatz\)/);
   });
 });

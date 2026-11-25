@@ -38,7 +38,7 @@ export async function watchPositions(d: Deps, mk: Market, s: { open: number; clo
     if (st.hit && (await ev(d, p.id, "stop_alert", { price: q.price, stop: p.stop, gap: st.gap }, `stop_hit:${p.id}:${day}:${p.stop}`))) {
       if (d.cfg.mailPosition) {
         const m = positionMail(d.cfg, st.gap ? "Ausstieg · Kurslücke unter Stopp" : "Ausstieg · Stopp erreicht", p.symbol,
-          [`Stopp ${p.stop.toFixed(2)} ${r.currency}, Kurs ${q.price.toFixed(2)} ${r.currency} (${formatBerlin(q.time)}).`, st.text, `Restposition: ${remaining(p)} Stück. Verkauf löst du selbst beim Broker aus.`, ...(await link(d, p.id))], now);
+          [`Stopp ${p.stop.toFixed(2)} ${r.currency}, Kurs ${q.price.toFixed(2)} ${r.currency} (${formatBerlin(q.time)}).`, st.text, `Der Swing hat seinen vorgesehenen Ausstieg erreicht. Er wird nicht nachträglich zu einem Langfristinvestment umgedeutet; ein Trailing-Stopp oder längeres Halten gilt nur für Positionen, die vorher den Teilgewinn erreicht haben.`, `Restposition: ${remaining(p)} Stück. Verkauf löst du selbst beim Broker aus.`, ...(await link(d, p.id))], now);
         await enqueue(d, { id: `pos-stop|${p.id}|${day}|${p.stop}`, kind: "position", subject: m.subject, text: m.text, sendBy: now + 30 * MIN });
       }
       continue;

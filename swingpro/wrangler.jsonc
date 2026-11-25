@@ -11,11 +11,14 @@
     { "binding": "DB", "database_name": "swingpro", "database_id": "HIER_NACH_wrangler_d1_create_EINTRAGEN", "migrations_dir": "migrations" }
   ],
   "triggers": {
-    // UTC. 13–21 Uhr deckt die US-Handelszeit in Sommer- und Winterzeit ab; Handelstage/-zeiten prüft der Code.
-    "crons": ["1,6,11,16,21,26,31,36,41,46,51,56 13-21 * * 1-5", "*/10 21-23 * * 1-5"]
+    // UTC. 7–21 Uhr deckt Xetra (09:00–17:30 Berlin = 07:00/08:00–15:30/16:30 UTC) und die US-Handelszeit (13:30–21:00 UTC) in Sommer- und Winterzeit ab;
+    // Handelstage/-zeiten prüft der Code je Markt.
+    "crons": ["1,6,11,16,21,26,31,36,41,46,51,56 7-21 * * 1-5", "*/10 21-23 * * 1-5"]
   },
   "vars": {
     "MODE": "paper",
+    // Märkte: US (Standard) und/oder DE. DE braucht FX_USD_PER_EUR, FX_DATE, FX_SOURCE und den Secret TWELVEDATA_API_KEY (Tarif mit Xetra-Intraday).
+    "MARKETS": "US",
     "DATA_FEED": "iex",
     "DAILY_FEED": "sip",
     "ACCOUNT_CURRENCY": "USD",

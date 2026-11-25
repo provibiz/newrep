@@ -8,7 +8,7 @@
 import type { Bar, Prepared, RunningBar, SetupId } from "./types";
 import type { Config } from "./config";
 import { catalystKnown, type EarningsEvent } from "./catalyst";
-import { nyDate } from "./time";
+import { nyDate, formatBerlin } from "./time";
 import { sessionFor } from "./calendar";
 
 export interface PatternParams {
@@ -348,24 +348,29 @@ export function emaReclaimProgress(H: Bar[], p: PatternParams): ReclaimProgress 
 function emaReclaim(H: Bar[], c: Ctx): Prepared | null {
   const r = c.p.reclaim, n = H.length;
   const pr = emaReclaimProgress(H, c.p);
-  if (!pr.belowEmas || !pr.retest || pr.sidewaysDays < r.minSideways) return null;
+  if (!pr.belowEmas || !pr.retest) return null;
   const closes = H.map((b) => b.c), e10 = emaSeries(closes, 10)[n - 1], e20 = emaSeries(closes, 20)[n - 1];
   const trigger = Math.max(e10, e20);
-  const win = H.slice(-pr.sidewaysDays), low = Math.min(...win.map((b) => b.l));
+  // Der Rücktest erzeugt die VORWARNUNG. Solange die Seitwärtsphase kürzer als der Mindestwert ist, bleibt der Trigger gesperrt (stabilizing).
+  const stabilizing = pr.sidewaysDays < r.minSideways;
+  const span = Math.max(pr.sidewaysDays, 3);
+  const win = H.slice(-span), low = Math.min(...win.map((b) => b.l));
   if (!(trigger > H[n - 1].c) || !(low > 0)) return null;
   const lowDate = dateOf(win.find((b) => b.l === low)!);
   return mk(c, H, "ema_reclaim", {
     trigger, stop: stopBelow(low), invalidateBelow: low, refresh: true, needsDayClose: r.confirm === "daily_close",
-    stopBasis: `Tief der Konsolidierung vom ${lowDate} (${low.toFixed(2)}) innerhalb der letzten ${pr.sidewaysDays} Seitwärtstage`,
+    stopBasis: `Tief der Konsolidierung vom ${lowDate} (${low.toFixed(2)}) innerhalb der letzten ${span} Tage${stabilizing ? " (vorläufig, solange die Stabilisierung läuft)" : ""}`,
     conditions: [
-      pr.level !== null ? `Rücklauf auf das alte Ausbruchsniveau ${pr.level.toFixed(2)} (Hoch vom ${pr.levelDate}) – das ist nur die Vorbereitung` : "Niveau-Test ausgeschaltet",
-      `Seitwärtsphase über ${pr.sidewaysDays} Tage (${rangePct(win).toFixed(1)} % Spanne). Modellannahme: mindestens ${r.minSideways} Tage – die Quelle nennt keine Zahl`,
+      pr.level !== null ? `Rücklauf auf das alte Ausbruchsniveau ${pr.level.toFixed(2)} (Hoch vom ${pr.levelDate}) – das ist nur die Vorbereitung (Vorwarnung)` : "Niveau-Test ausgeschaltet",
+      stabilizing ? `Stabilisierung läuft: ${pr.sidewaysDays} von mindestens ${r.minSideways} Seitwärtstagen (Modellannahme – die Quelle nennt keine Zahl)` : `Seitwärtsphase über ${pr.sidewaysDays} Tage (${rangePct(win).toFixed(1)} % Spanne). Modellannahme: mindestens ${r.minSideways} Tage – die Quelle nennt keine Zahl`,
       `Schluss ${H[n - 1].c.toFixed(2)} unter EMA10 ${e10.toFixed(2)} und EMA20 ${e20.toFixed(2)} (fallender EMA20)`,
     ],
-    pending: [r.confirm === "intraday"
-      ? `5-Minuten-Schluss über EMA10 und EMA20 (${trigger.toFixed(2)}). Modellannahme: Die Quelle legt keine Schlusskursbestätigung fest`
-      : `Tagesschluss über EMA10 und EMA20 (${trigger.toFixed(2)}), erst nach Börsenschluss. Modellannahme: Die Quelle legt keine Schlusskursbestätigung fest`],
-    extra: { level: pr.level, sidewaysDays: pr.sidewaysDays, stopBasisKind: "consolidation_low" },
+    pending: [
+      ...(stabilizing ? [`Seitwärtsphase muss noch ${r.minSideways - pr.sidewaysDays} Tag(e) halten – bis dahin ist der Einstieg gesperrt`] : []),
+      r.confirm === "intraday"
+        ? `5-Minuten-Schluss über EMA10 und EMA20 (${trigger.toFixed(2)}). Modellannahme: Die Quelle legt keine Schlusskursbestätigung fest`
+        : `Tagesschluss über EMA10 und EMA20 (${trigger.toFixed(2)}), erst nach Börsenschluss. Modellannahme: Die Quelle legt keine Schlusskursbestätigung fest`],
+    extra: { level: pr.level, sidewaysDays: pr.sidewaysDays, stabilizing, stopBasisKind: "consolidation_low" },
   });
 }
 
@@ -373,6 +378,33 @@ const DETECTORS = [undercutRally, firstHigherLow, wedgePop, emaCrossback, baseNB
 
 /** Alle vorbereiteten Setups zum Stand der letzten abgeschlossenen Kerze in H. */
 export interface PrepareCtx { events?: EarningsEvent[] }
+
+/** Runde Marke knapp über dem Trigger (höchstens 3 %): nur Kontext, überschreibt nie die aus dem Chart abgeleitete Marke. */
+export function roundLevelAbove(trigger: number): number | null {
+  const steps = [0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
+  const step = steps.find((x) => x >= trigger * 0.02) ?? 5000;
+  const lvl = Math.ceil(trigger / step - 1e-9) * step;
+  return lvl > trigger + 1e-9 && lvl <= trigger * 1.03 ? Math.round(lvl * 100) / 100 : null;
+}
+const eq = (a: number, b: number) => Math.abs(a - b) < 0.0051;
+const whenOf = (b: Bar, tf: "1h" | "1d") => (tf === "1d" ? dateOf(b) : formatBerlin(b.end));
+
+/** Ergänzt Herkunft der Marken (Kerzen) und Kontextmarken. Liest nur abgeschlossene Kerzen aus H. */
+function annotate(H: Bar[], tf: "1h" | "1d", ps: Prepared[]): Prepared[] {
+  const recent = H.slice(-60);
+  return ps.map((p) => {
+    const ev: string[] = [`Struktur beruht auf abgeschlossenen ${tf === "1d" ? "Tages" : "Stunden"}kerzen bis ${whenOf(H[H.length - 1], tf)} (Schluss ${H[H.length - 1].c.toFixed(2)})`];
+    const tb = [...recent].reverse().find((b) => eq(b.h, p.trigger));
+    if (p.setup === "ema_reclaim") ev.push(`Auslösemarke ${p.trigger.toFixed(2)} = höherer Wert aus EMA10 und EMA20 am Schluss der Kerze vom ${whenOf(H[H.length - 1], tf)} (wandert mit den EMAs, wird täglich neu berechnet)`);
+    else if (tb) ev.push(`Auslösemarke ${p.trigger.toFixed(2)} = Hoch der abgeschlossenen Kerze vom ${whenOf(tb, tf)}`);
+    const sb = [...recent].reverse().find((b) => eq(b.l, p.stop + 0.01) || eq(b.l, p.invalidateBelow));
+    if (sb) ev.push(`Stopp ${p.stop.toFixed(2)} = Tief ${sb.l.toFixed(2)} der abgeschlossenen Kerze vom ${whenOf(sb, tf)} minus 1 Cent; die Idee ist widerlegt bei Schluss/Tief darunter`);
+    const rl = roundLevelAbove(p.trigger);
+    const ctx = [...(p.contextLevels ?? [])];
+    if (rl !== null && !ctx.some((c) => eq(c.level, rl))) ctx.push({ level: rl, label: "runde Marke – nur Kontext, ersetzt die aus dem Chart abgeleitete Marke nicht" });
+    return { ...p, evidence: ev, contextLevels: ctx.length ? ctx : undefined };
+  });
+}
 
 /** Kurslücken (Eröffnung ≥ erc.minGapPct über dem Vortagesschluss) innerhalb des Rückblicks – Kandidaten für die Katalysator-Prüfung. */
 export function findGapDays(H: Bar[], p: PatternParams): number[] {
@@ -392,9 +424,9 @@ export function prepare(H: Bar[], tf: "1h" | "1d" = "1h", params?: PatternParams
   }
   // Im Tageschart ersetzen die spezifischen Basis-Pfade (Inside-Day-Trigger) den generischen Basisausbruch derselben Kursstrecke.
   if (tf === "1d" && out.some((p) => p.setup === "earnings_consolidation" || p.setup === "multiweek_base")) {
-    return out.filter((p) => p.setup !== "base_breakout" && p.setup !== "base_n_break");
+    return annotate(H, tf, out.filter((p) => p.setup !== "base_breakout" && p.setup !== "base_n_break"));
   }
-  return out;
+  return annotate(H, tf, out);
 }
 
 export interface TriggerResult { fired: boolean; reasons: string[]; stop: number; blocked?: string }
@@ -407,6 +439,7 @@ export function checkTrigger(p: Prepared, run: RunningBar, p2: PatternParams = H
   const no = (blocked: string): TriggerResult => ({ fired: false, reasons: [], stop: p.stop, blocked });
   if (p.needsHourClose) return no("Setup braucht den Stundenschluss");
   if (p.needsDayClose) return no("Setup braucht den Tagesschluss");
+  if (p.extra?.stabilizing) return no("Stabilisierung (Seitwärtsphase) noch nicht abgeschlossen");
   if (run.l <= p.invalidateBelow) return no("Invalidierungsmarke unterschritten");
   if (!(run.c > p.trigger)) return no("kein 5-Minuten-Schluss über dem Auslöser");
   let stop = p.stop;
@@ -430,6 +463,7 @@ export function checkTrigger(p: Prepared, run: RunningBar, p2: PatternParams = H
 /** Tagesschluss-Setups (z. B. EMA-Reclaim mit Tagesschluss-Bestätigung): nur mit vollständiger Tageskerze nach Börsenschluss. */
 export function checkDayCloseTrigger(p: Prepared, day: RunningBar): TriggerResult {
   if (!p.needsDayClose) return { fired: false, reasons: [], stop: p.stop, blocked: "kein Tagesschluss-Setup" };
+  if (p.extra?.stabilizing) return { fired: false, reasons: [], stop: p.stop, blocked: "Stabilisierung (Seitwärtsphase) noch nicht abgeschlossen" };
   if (day.l <= p.invalidateBelow) return { fired: false, reasons: [], stop: p.stop, blocked: "Invalidierungsmarke unterschritten" };
   if (!(day.c > p.trigger)) return { fired: false, reasons: [], stop: p.stop, blocked: "Tagesschluss nicht über dem Auslöser" };
   return { fired: true, stop: p.stop, reasons: [`Tagesschluss ${day.c.toFixed(2)} über dem Auslöser ${p.trigger.toFixed(2)} (abgeschlossene Tageskerze)`] };

@@ -77,6 +77,8 @@ export interface Prepared {
   refresh?: boolean;
   /** Worauf sich der Stopp bezieht, z. B. „Tagestief vom 2026-11-24 (Inside Day)“. */
   stopBasis?: string;
+  /** Herkunft der Marken: welche abgeschlossenen Kerzen Trigger, Stopp und Struktur erzeugten. */
+  evidence?: string[];
   /** Kontextmarken, die ausdrücklich KEIN Trigger sind (z. B. runde Marken). */
   contextLevels?: { level: number; label: string }[];
 }

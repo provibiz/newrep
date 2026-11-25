@@ -10,7 +10,9 @@
     "dev": "wrangler dev --test-scheduled",
     "deploy": "wrangler deploy",
     "migrate:remote": "wrangler d1 migrations apply swingpro --remote",
-    "migrate:local": "wrangler d1 migrations apply swingpro --local"
+    "migrate:local": "wrangler d1 migrations apply swingpro --local",
+    "blindrun": "tsx scripts/blindrun.ts",
+    "gmail-auth": "tsx scripts/gmail-auth.ts"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "*",

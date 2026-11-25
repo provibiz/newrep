@@ -1,7 +1,7 @@
 import type { Deps } from "../deps";
 import { all, run, one, batchRun } from "../store";
 import { enqueue } from "../outbox";
-import { prewarnMail, type PrewarnItem } from "../mail";
+import { prewarnMail, type PrewarnItem, type CandidateInfo } from "../mail";
 import type { Prepared, SetupId, Bar } from "../types";
 import { loadSeries } from "../series";
 import { qqqDecision } from "../market";
@@ -33,6 +33,7 @@ export async function notifyPrewarn(d: Deps, key: string): Promise<number> {
     bySym.set(r.symbol, it);
   }
   const items = [...bySym.values()].sort((a, b) => (b.rsPct ?? 0) - (a.rsPct ?? 0)).slice(0, 15);
+  for (const it of items) it.candidate = await candidateInfo(d, it.symbol);   // nur für die gemeldeten (höchstens 15)
   const id = `prewarn:${key}`;
   if (d.cfg.mailPrewarn && items.length) {
     const m = prewarnMail(d.cfg, items, d.now());
@@ -74,10 +75,11 @@ export class PreparedBook {
       const id = preparedId(symbol, p);
       if (this.ids.has(id)) continue;
       const similar = this.active.some((a) => a.symbol === symbol && a.setup === p.setup && a.tf === p.timeframe && Math.abs(a.trigger / p.trigger - 1) <= 0.01);
-      if (!same && p.refresh) {
-        // wandernde Level (z. B. EMA): bestehende aktive Vorbereitung aktualisieren statt neue anlegen
-        const hasActive = this.active.some((a) => a.symbol === symbol && a.setup === p.setup && a.tf === p.timeframe);
-        if (hasActive) {
+      if (!same && !similar) {
+        // Dieselbe Struktur wandert (EMA, gleitende Basis): bis 5 % Abweichung wird die bestehende Vorbereitung nachgeführt statt eine neue (mit neuer Vorwarnung) anzulegen
+        const ex = this.active.find((a) => a.symbol === symbol && a.setup === p.setup && a.tf === p.timeframe && Math.abs(a.trigger / p.trigger - 1) <= (p.refresh ? 1 : 0.05));
+        if (ex) {
+          ex.trigger = p.trigger;
           this.stmts.push({ sql: "UPDATE prepared SET trigger_price=?, stop_price=?, data=?, armed_at=?, expires_at=? WHERE symbol=? AND setup=? AND timeframe=? AND state='active'", args: [p.trigger, p.stop, JSON.stringify(p), p.armedAt, expiresAt(p), symbol, p.setup, p.timeframe] });
           continue;
         }
@@ -91,4 +93,12 @@ export class PreparedBook {
     }
   }
   async flush() { await batchRun(this.d.db, this.stmts, 40); this.stmts = []; }
+}
+
+/** Warum steht der Titel auf der Kandidatenliste? Letzter Eintrag des unveränderlichen Kandidatenprotokolls. */
+export async function candidateInfo(d: Deps, key: string): Promise<CandidateInfo | null> {
+  const c = await one<any>(d.db, "SELECT asof, market, rank, reasons FROM candidate_log WHERE inst_key=? ORDER BY asof DESC LIMIT 1", key);
+  if (!c) return null;
+  const t = await one<{ n: number }>(d.db, "SELECT COUNT(*) n FROM candidate_log WHERE asof=? AND market=?", c.asof, c.market);
+  return { rank: c.rank, total: t?.n ?? c.rank, reasons: JSON.parse(c.reasons) };
 }

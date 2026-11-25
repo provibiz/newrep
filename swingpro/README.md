@@ -1,6 +1,6 @@
 # SwingPro (Cloudflare)
 
-Swing-Trading-Assistent als Cloudflare Worker: findet selbständig Aktien (Nasdaq/NYSE-Stammaktien), meldet **Vorwarnungen** und **bestätigte Einstiege** per E-Mail und begleitet einen von dir bestätigten Kauf bis zum Ausstieg. **Empfehlungen only – Orders löst nur du aus.**
+Swing-Trading-Assistent als Cloudflare Worker: findet selbständig Aktien (Nasdaq/NYSE sowie Xetra, ohne Watchlist), meldet **Vorwarnungen** und **bestätigte Einstiege** per E-Mail und begleitet einen von dir bestätigten Kauf bis zum Ausstieg. **Empfehlungen only – Orders löst nur du aus.**
 
 | Datei | Inhalt |
 |---|---|
@@ -19,7 +19,7 @@ Assets → Ausschlüsse → Tageskerzen (inkrementell) → Stundenkerzen inkreme
 → Tages-Setups → Positionsprüfung → Tagesbericht                                                       → bestätigt | verpasst | nicht prüfbar → Mail
                                                           Kaufbestätigung per Link (POST) → 2R-Teilverkauf → Wochentief-Stopp → Ausstieg
 ```
-Technik: Worker + Cron Triggers (`1,6,11,… 13–21 UTC` Takt, `*/10 21–23 UTC` Tageslauf), D1 (Reihen als JSON je Symbol, Läufe, Signale, Postausgang, Positionen), Resend. Jeder Lauf hat einen eindeutigen Schlüssel (`scan_runs.run_key`), jede Mail einen Idempotenzschlüssel (`outbox.id` = `Idempotency-Key`), Positionsereignisse haben `idem_key`.
+Technik: Worker + Cron Triggers (`1,6,11,… 7–21 UTC` Takt für Xetra und USA, `*/10 21–23 UTC` Tageslauf), D1 (Reihen als JSON je Instrument, Läufe, Signale, Kandidatenprotokoll, Postausgang, Positionen), **Gmail API** (nur `gmail.send`, ausgehend). Jeder Lauf hat einen eindeutigen Schlüssel (`scan_runs.run_key`); Doppelversand verhindert der Postausgang (atomares Beanspruchen, kein automatisches Wiederholen bei unklarem Ausgang), Positionsereignisse haben `idem_key`.
 
 ## Befehle
 ```bash

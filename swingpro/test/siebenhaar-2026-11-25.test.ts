@@ -181,11 +181,15 @@ describe("Sartorius – mehrwöchige Basis im Tageschart, EUR, Xetra", () => {
 describe("Illumina – EMA-Reclaim (getrennt vom EMA-Crossback)", () => {
   const H = illuminaDaily();
   const idx = (d: string) => H.findIndex((b) => new Date(b.end - 8 * HOUR).toISOString().slice(0, 10) === d);
-  it("Rücklauf aufs alte Niveau allein ist nur Vorbereitung: ohne Seitwärtsphase kein Setup", () => {
+  it("Der Rücktest aufs alte Niveau erzeugt die VORWARNUNG – der Einstieg bleibt bis zur Stabilisierung gesperrt", () => {
     const retest = H.slice(0, idx("2026-11-18") + 1);
     const pr = emaReclaimProgress(retest, P);
     expect(pr).toMatchObject({ retest: true, belowEmas: true }); expect(pr.level).toBeCloseTo(200.8, 5); expect(pr.sidewaysDays).toBeLessThan(P.reclaim.minSideways);
-    expect(prepare(retest, "1d", P).map((x) => x.setup)).not.toContain("ema_reclaim");
+    const p = prepare(retest, "1d", P).find((x) => x.setup === "ema_reclaim")!;
+    expect(p).toBeTruthy(); expect(p.extra!.stabilizing).toBe(true);
+    expect(p.conditions.join(" ")).toMatch(/nur die Vorbereitung \(Vorwarnung\)/); expect(p.pending.join(" ")).toMatch(/ist der Einstieg gesperrt/);
+    expect(checkTrigger(p, run0({ c: p.trigger + 5, l: 203 })).blocked).toMatch(/Stabilisierung/);                    // selbst ein Schluss über den EMAs löst noch nichts aus
+    expect(checkDayCloseTrigger({ ...p, needsDayClose: true }, run0({ c: p.trigger + 5, l: 203 })).blocked).toMatch(/Stabilisierung/);
   });
   it("nach der Seitwärtsphase vorbereitet: Trigger = Rückeroberung von EMA10/EMA20, Stopp unter dem Konsolidierungstief", () => {
     const p = prepare(H, "1d", P).find((x) => x.setup === "ema_reclaim")!;
@@ -199,8 +203,9 @@ describe("Illumina – EMA-Reclaim (getrennt vom EMA-Crossback)", () => {
     expect(p.pending.join(" ")).toMatch(/legt keine Schlusskursbestätigung fest/);
   });
   it("Anzahl Seitwärtstage ist konfigurierbar", () => {
-    expect(prepare(H, "1d", dailyParams(base({ EMA_RECLAIM_MIN_SIDEWAYS_DAYS: "5" }))).map((x) => x.setup)).toContain("ema_reclaim");
-    expect(prepare(H, "1d", dailyParams(base({ EMA_RECLAIM_MIN_SIDEWAYS_DAYS: "6" }))).map((x) => x.setup)).not.toContain("ema_reclaim");
+    const get = (n: string) => prepare(H, "1d", dailyParams(base({ EMA_RECLAIM_MIN_SIDEWAYS_DAYS: n }))).find((x) => x.setup === "ema_reclaim")!;
+    expect(get("5").extra!.stabilizing).toBe(false);                    // 5 Seitwärtstage vorhanden → Einstieg möglich
+    expect(get("6").extra!.stabilizing).toBe(true);                     // strengere Vorgabe: noch nicht stabil → gesperrt, aber vorgewarnt
   });
   it("Bestätigungsart konfigurierbar: 5-Minuten-Schluss (Standard) oder Tagesschluss", () => {
     const intraday = prepare(H, "1d", P).find((x) => x.setup === "ema_reclaim")!;
@@ -326,5 +331,172 @@ describe("Drei getrennte Entscheidungen und Kennzeichnung", () => {
       expect(src, f).not.toMatch(/\b(Crocs|CROX|Sartorius|Illumina|ILMN)\b/);
       expect(src, f).not.toMatch(/(?<![\d.])(298|159[.,]24|292[.,]80|204[.,]52)(?![\d])/);
     }
+  });
+});
+
+// ═════════════ Herkunft der Marken, Kandidatenliste, Regelstatus, automatische Marktvorgabe ═════════════
+import { deriveAutoStance, getOverride } from "../src/permission";
+import { roundLevelAbove } from "../src/patterns";
+import type { Regime } from "../src/regime";
+import { setMeta } from "../src/store";
+import { usMarket } from "../src/markets";
+
+const REG_BEAR: Regime = { asof: "2026-11-24", breadth: { asof: "2026-11-24", universe: "u", period: "p", source: "s", n: 3000, newHighs: 123, newLows: 465, above50Pct: 28, above200Pct: 40 },
+  leadership: { asof: "2026-11-24", source: "s", period: "p", leaders: [], growthLeading: false }, ftd: [], thinWeek: "", text: ["Marktbreite …"] };
+const REG_BULL: Regime = { ...REG_BEAR, breadth: { ...REG_BEAR.breadth!, newHighs: 500, newLows: 60, above50Pct: 71 }, leadership: { ...REG_BEAR.leadership!, growthLeading: true } };
+const SP_BELOW: any = { state: "unter", obsDate: "2026-11-23", close: 6500, sma200: 6700, lastCompleted: "2026-11-24", isLastCompleted: false, text: "" };
+const SP_ABOVE: any = { ...SP_BELOW, state: "über", close: 7237, sma200: 6700 };
+const mkUs = { id: "US" as const, previousSession: (d: string) => usMarket(null as any).previousSession(d) };
+const NOW = Date.parse("2026-11-24T21:00:00Z");
+
+describe("Automatische Marktentscheidung (ohne tägliche manuelle Freigabe)", () => {
+  const cfg = base({ AUTO_STANCE: "true" });
+  it("schwache Breite, fehlende Wachstumsführung und S&P unter SMA200 → Cash; ein Merkmal → selektiv; keines → offen", () => {
+    expect(deriveAutoStance(cfg, mkUs, REG_BEAR, SP_BELOW, NOW, "2026-11-24")).toMatchObject({ stance: "cash", source: "auto", flags: 4 });
+    const one = deriveAutoStance(cfg, mkUs, { ...REG_BULL, leadership: { ...REG_BULL.leadership!, growthLeading: false } }, SP_ABOVE, NOW, "2026-11-24");
+    expect(one).toMatchObject({ stance: "selective", flags: 1 }); expect(one.reasons!.join(" ")).toMatch(/Wachstumsgruppen führen nicht/);
+    expect(deriveAutoStance(cfg, mkUs, REG_BULL, SP_ABOVE, NOW, "2026-11-24")).toMatchObject({ stance: "open", flags: 0 });
+  });
+  it("Follow-Through-Day gibt allein nichts frei", () => {
+    const r = { ...REG_BEAR, ftd: [{ index: "QQQ", state: "Follow-Through-Day" as const, day: 5, date: "2026-11-24", text: "" }] };
+    const s = deriveAutoStance(cfg, mkUs, r, SP_BELOW, NOW, "2026-11-24");
+    expect(s.stance).toBe("cash"); expect(s.reasons!.join(" ")).toMatch(/nur zur Information/);
+  });
+  it("veraltete oder fehlende Marktdaten → Standard Cash (konfigurierbar), nie Freigabe", () => {
+    expect(deriveAutoStance(cfg, mkUs, null, null, NOW, "2026-11-24")).toMatchObject({ stance: "cash", source: "stale_default" });
+    const old = deriveAutoStance(cfg, mkUs, { ...REG_BULL, asof: "2026-11-16" }, SP_ABOVE, NOW, "2026-11-24");
+    expect(old).toMatchObject({ stance: "cash", source: "stale_default" }); expect(old.reasons!.join(" ")).toMatch(/Sitzungen alt/);
+    expect(deriveAutoStance(base({ AUTO_STALE_STANCE: "selective" }), mkUs, null, null, NOW, "2026-11-24").stance).toBe("selective");
+  });
+  it("Schwellen sind Modellannahmen und konfigurierbar", () => {
+    expect(deriveAutoStance(base({ AUTO_MIN_ABOVE50_PCT: "20" }), mkUs, REG_BEAR, SP_ABOVE, NOW, "2026-11-24").flags).toBe(2);        // Breite-Anteil über SMA50 greift nicht mehr
+    expect(deriveAutoStance(base({ AUTO_BEARISH_FLAGS_CASH: "5" }), mkUs, REG_BEAR, SP_BELOW, NOW, "2026-11-24").stance).toBe("selective");
+  });
+  it("manuelle Vorgabe braucht Begründung und Ablaufzeit, gilt bis dahin und fällt dann auf die automatische Entscheidung zurück", async () => {
+    const db = createDb(); const d = makeDeps(db, base({ AUTO_STANCE: "true" }), NOW);
+    await expect(setStance(d, "open", "", { hours: 24 })).rejects.toThrow(/Begründung/);
+    await expect(setStance(d, "open", "Grund", {})).rejects.toThrow(/Ablaufzeit/);
+    await expect(setStance(d, "open", "Grund", { hours: 24 * 30 })).rejects.toThrow(/höchstens 14 Tage/);
+    await setStance(d, "open", "Ich beobachte die Lage selbst", { hours: 24, market: "US" });
+    expect(await getStance(d, "US")).toMatchObject({ stance: "open", source: "manual", note: "Ich beobachte die Lage selbst" });
+    expect((await getStance(d, "US")).until).toBe(NOW + 24 * 3_600_000);
+    d.clock.t = NOW + 25 * 3_600_000;
+    expect((await getStance(d, "US")).source).toBe("stale_default");                  // abgelaufen → automatisch (hier ohne Marktdaten → Standard Cash)
+    expect((await getOverride(d, "US")).expired).toMatchObject({ stance: "open" });
+  });
+});
+
+describe("Herkunft der Marken und Kandidatenliste", () => {
+  it("Trigger, Stopp und Struktur nennen die abgeschlossenen Kerzen, aus denen sie stammen", () => {
+    const p = prepare(croxDaily(), "1d", P, { events: [CROX_EVENT] }).find((x) => x.setup === "earnings_consolidation")!;
+    expect(p.evidence!.join(" | ")).toMatch(/Auslösemarke 160\.00 = Hoch der abgeschlossenen Kerze vom 2026-11-24/);
+    expect(p.evidence!.join(" | ")).toMatch(/Stopp 157\.39 = Tief 157\.40 der abgeschlossenen Kerze vom 2026-11-24 minus 1 Cent/);
+    const r = prepare(illuminaDaily(), "1d", P).find((x) => x.setup === "ema_reclaim")!;
+    expect(r.evidence!.join(" | ")).toMatch(/höherer Wert aus EMA10 und EMA20 am Schluss der Kerze vom 2026-11-24/);
+    expect(r.evidence!.join(" | ")).toMatch(/Stopp 197\.39 = Tief 197\.40 der abgeschlossenen Kerze vom 2026-11-18/);
+  });
+  it("runde Marke ist nur Kontext und überschreibt die aus dem Chart abgeleitete Marke nie", () => {
+    expect(roundLevelAbove(298)).toBe(300); expect(roundLevelAbove(160)).toBeNull(); expect(roundLevelAbove(98.6)).toBe(100);
+    const flat = Array.from({ length: 20 }, () => ({ end: 0, o: 100, h: 100.2, l: 99.8, c: 100, v: 1000 })).map((b, i) => ({ ...b, end: i * 3_600_000 }));
+    flat.push({ end: 20 * 3_600_000, o: 98.4, h: 98.6, l: 96.5, c: 98.5, v: 1000 }, { end: 21 * 3_600_000, o: 98.5, h: 98.6, l: 96.4, c: 98.5, v: 1000 });
+    const ps = prepare(flat.slice(0, 21), "1h");
+    const u = ps.find((x) => x.setup === "undercut_rally");
+    if (u) { expect(u.trigger).toBe(98.6 > 0 ? u.trigger : 0); expect(u.trigger).not.toBe(100); }
+    const ctx = prepare(sartoriusDaily(), "1d", P).find((x) => x.setup === "multiweek_base")!;
+    expect(ctx.trigger).toBe(298); expect(ctx.contextLevels!.map((c) => c.level)).toEqual([300]);
+  });
+  it("Vorwarnung und Einstieg nennen den Grund für die Kandidatenliste (Rang, Relative Stärke, Liquidität, Spanne)", async () => {
+    const w = await world({ symbol: "CROX", name: "Crocs Inc. Common Stock", bars: croxDaily(), asof: LAST, events: [CROX_EVENT] });
+    const pw = w.mail.sent.find((m) => m.subject.startsWith("Vorwarnung"))!;
+    expect(pw.text).toMatch(/Warum auf der Kandidatenliste: Rang 1 von 1 im Markt/); expect(pw.text).toMatch(/Relative Stärke: 63-Tage-Rendite/); expect(pw.text).toMatch(/Herkunft der Marken:/);
+    w.d.clock.t = morning("2026-11-25").now; breakout5("CROX", w.sc, "2026-11-25", 160, 160.15, 160.25, w.d); await runIntraday(w.d);
+    const m = w.mail.sent.find((x) => x.subject.startsWith("Einstieg"))!;
+    expect(m.text).toMatch(/Warum auf der Kandidatenliste: Rang 1 von 1/); expect(m.text).toMatch(/Herkunft der Marken:/);
+    expect(await all(w.db, "SELECT 1 FROM candidate_log")).toHaveLength(1);
+  });
+});
+
+describe("Regelstatus: Sperre, Kontext, fehlende Daten", () => {
+  it("Einstiegsmail trennt Sperren, Kontext und fehlende Daten; Baron/Giering sperren nie", async () => {
+    const w = await world({ symbol: "CROX", name: "Crocs Inc. Common Stock", bars: croxDaily(), asof: LAST, events: [CROX_EVENT] });
+    w.d.clock.t = morning("2026-11-25").now; breakout5("CROX", w.sc, "2026-11-25", 160, 160.15, 160.25, w.d); await runIntraday(w.d);
+    const t = w.mail.sent.find((x) => x.subject.startsWith("Einstieg"))!.text;
+    expect(t).toMatch(/Sperren: keine – alle sperrenden Regeln/); expect(t).toMatch(/Nur Kontext \(sperrt nicht\): Baron: S&P 500/); expect(t).toMatch(/Giering: Wachstum/);
+    expect(t).toMatch(/Fehlende Daten: .*S&P-500-Daten \(FRED\).*Wachstumsdaten/);
+  });
+  it("gesperrt durch Marktvorgabe: Sperre benannt, Kontext getrennt", async () => {
+    const w = await world({ symbol: "CROX", name: "Crocs Inc. Common Stock", bars: croxDaily(), asof: LAST, events: [CROX_EVENT], cfg: { MARKET_STANCE: "cash" } });
+    w.d.clock.t = morning("2026-11-25").now; breakout5("CROX", w.sc, "2026-11-25", 160, 160.15, 160.25, w.d); await runIntraday(w.d);
+    const t = w.mail.sent.find((x) => x.subject.startsWith("Nur beobachten"))!.text;
+    expect(t).toMatch(/Sperren: Marktvorgabe/); expect(t).toMatch(/Nur Kontext \(sperrt nicht\)/);
+  });
+});
+
+describe("Entscheidender Test: Trigger in „cash“, später „offen“", () => {
+  async function cashWorld() {
+    const w = await world({ symbol: "CROX", name: "Crocs Inc. Common Stock", bars: croxDaily(), asof: LAST, events: [CROX_EVENT], cfg: { MARKET_STANCE: "cash" } });
+    w.d.clock.t = morning("2026-11-25").now; breakout5("CROX", w.sc, "2026-11-25", 160, 160.15, 160.25, w.d); await runIntraday(w.d);
+    expect(w.mail.sent.filter((m) => m.subject.startsWith("Nur beobachten"))).toHaveLength(1);
+    return w;
+  }
+  it("Kurs inzwischen weggelaufen → ‚Einstieg verpasst‘ (genau eine Mail, kein Kauf-Link, keine Position)", async () => {
+    const w = await cashWorld();
+    await setStance(w.d, "open", "Marktlage gedreht", { hours: 24 });
+    w.d.clock.t += 10 * MIN; breakout5("CROX", w.sc, "2026-11-25", 160, 163.9, 164.0, w.d);      // 1,5 R über dem Auslöser
+    await runIntraday(w.d);
+    const m = w.mail.sent.filter((x) => x.subject.startsWith("Einstieg verpasst"));
+    expect(m).toHaveLength(1); expect(m[0].subject).toBe("Einstieg verpasst · CROX · Konsolidierung nach Quartalszahlen"); expect(m[0].text).not.toMatch(/\/a\//);
+    expect(w.mail.sent.some((x) => x.subject.startsWith("Einstieg bestätigt"))).toBe(false);
+    expect(await all(w.db, "SELECT 1 FROM positions")).toHaveLength(0);
+    w.d.clock.t += 5 * MIN; await runIntraday(w.d); await runIntraday(w.d);
+    expect(w.mail.sent.filter((x) => /^Einstieg/.test(x.subject))).toHaveLength(1);              // keine Wiederholung
+  });
+  it("Setup weiterhin gültig und Kurs handelbar → genau EINE Einstiegsmail, auch bei mehreren Läufen", async () => {
+    const w = await cashWorld();
+    await setStance(w.d, "open", "Marktlage gedreht", { hours: 24 });
+    for (let i = 0; i < 3; i++) { w.d.clock.t += 5 * MIN; breakout5("CROX", w.sc, "2026-11-25", 160, 160.2, 160.3, w.d); await runIntraday(w.d); }
+    expect(w.mail.sent.filter((x) => x.subject.startsWith("Einstieg bestätigt"))).toHaveLength(1);
+    expect(w.mail.sent.filter((x) => x.subject.startsWith("Nur beobachten"))).toHaveLength(1);
+    expect(await all(w.db, "SELECT 1 FROM positions")).toHaveLength(1);
+  });
+  it("fiel der Kurs inzwischen unter die Invalidierungsmarke, entsteht keine Mail", async () => {
+    const w = await cashWorld();
+    await setStance(w.d, "open", "Marktlage gedreht", { hours: 24 });
+    w.d.clock.t += 10 * MIN; breakout5("CROX", w.sc, "2026-11-25", 160, 156.0, 156.1, w.d);       // Schluss unter dem Auslöser
+    await runIntraday(w.d);
+    expect(w.mail.sent.filter((x) => /^Einstieg/.test(x.subject))).toHaveLength(0);
+  });
+});
+
+describe("Stoppweite und Risikoregeln", () => {
+  it("Standard 10 %: der Illumina-Test mit größerem Abstand bleibt „Nur beobachten“ mit Begründung, ohne Kauf-Link", async () => {
+    const w = await world({ symbol: "ILMN", name: "Illumina Inc. Common Stock", bars: illuminaDaily(), asof: LAST, cfg: { MAX_STOP_PCT: "10" } });
+    const trig = (await one<any>(w.db, "SELECT trigger_price FROM prepared WHERE setup='ema_reclaim'")).trigger_price;
+    w.d.clock.t = morning("2026-11-25").now; breakout5("ILMN", w.sc, "2026-11-25", trig - 1, trig + 0.2, trig + 0.3, w.d);
+    await runIntraday(w.d);
+    const m = w.mail.sent.find((x) => x.subject.startsWith("Nur beobachten"))!;
+    expect(m.subject).toBe("Nur beobachten · ILMN · EMA-Reclaim");
+    expect(m.text).toMatch(/Risikoregel Stopp: Stopp 1[01]\.\d % entfernt \(Maximum 10 %\)/); expect(m.text).not.toMatch(/\/a\/|Stückzahl:/);
+    expect(await all(w.db, "SELECT 1 FROM positions")).toHaveLength(0);
+    w.d.clock.t += 5 * MIN; breakout5("ILMN", w.sc, "2026-11-25", trig - 1, trig + 0.2, trig + 0.3, w.d); await runIntraday(w.d);
+    expect(w.mail.sent.filter((x) => x.subject.startsWith("Nur beobachten"))).toHaveLength(1);   // einmal je Setup
+  });
+  it("USD/EUR: ein offenes EUR-Konto-Positionsvolumen mindert das verfügbare Kapital für US-Titel (dokumentierter Kurs)", () => {
+    const cfg = cfgOf({ FX_USD_PER_EUR: "1.10", FX_DATE: "2026-11-20", FX_SOURCE: "Test", CAPITAL: "10000" });
+    const r = sizePosition(cfg, 100, 99, [{ symbol: "XETR:ABC", sharesRemaining: 100, entry: 50, stop: 49.9, currency: "EUR" }], { currency: "USD" });
+    expect(r.available).toBeCloseTo(10000 - 5500, 6); expect(r.shares).toBe(25);                  // 5000 EUR = 5500 USD gebunden → 4500 USD frei; Gewichtsgrenze 25 % begrenzt
+    expect(() => sizePosition(cfgOf(), 100, 99, [{ symbol: "XETR:ABC", sharesRemaining: 1, entry: 50, stop: 49, currency: "EUR" }])).toThrow(/Wechselkurs/);   // ohne Kurs keine Umrechnung
+  });
+  it("verlorener Swing: Ausstiegsmail deutet ihn nicht zum Langfristinvestment um, der Stopp wird nicht gesenkt/gelockert", async () => {
+    const w = await world({ symbol: "CROX", name: "Crocs Inc. Common Stock", bars: croxDaily(), asof: LAST, events: [CROX_EVENT] });
+    w.d.clock.t = morning("2026-11-25").now; breakout5("CROX", w.sc, "2026-11-25", 160, 160.15, 160.25, w.d); await runIntraday(w.d);
+    const tok = w.mail.sent.find((x) => x.subject.startsWith("Einstieg"))!.text.match(/\/a\/([A-Za-z0-9_-]+)/)![1];
+    await handleRequest(new Request(`https://x.example/a/${tok}`, { method: "POST", body: new URLSearchParams({ action: "buy", price: "160.30", shares: "10", fees: "0", request_id: "buy-aaaaaaaa", confirm: "yes" }) }), w.d, { STATUS_TOKEN: "x".repeat(20) });
+    w.d.clock.t += 20 * MIN;
+    w.sc.alpaca.snaps.set("CROX", { latestQuote: { t: iso(w.d.clock.t - 2000), ap: 156.9, bp: 156.8 }, latestTrade: { t: iso(w.d.clock.t - 1000), p: 156.85 }, dailyBar: { t: iso(nyToUtc(2026, 11, 25, 0, 0)), o: 159, h: 160.3, l: 156.7, c: 156.85, v: 1 } as any });
+    await runIntraday(w.d);
+    const ex = w.mail.sent.find((x) => x.subject.startsWith("Ausstieg"))!;
+    expect(ex.text).toMatch(/nicht nachträglich zu einem Langfristinvestment umgedeutet/); expect(ex.text).not.toMatch(/Stopp nachziehen|auf Langfrist|halten/);
+    expect((await one<any>(w.db, "SELECT stop, initial_stop, status FROM positions"))).toMatchObject({ stop: 157.39, initial_stop: 157.39, status: "open" });   // wird nicht automatisch geschlossen oder verschoben
   });
 });

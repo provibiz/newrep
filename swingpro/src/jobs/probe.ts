@@ -10,6 +10,7 @@ export interface ProbeResult {
   at: number;
   alpacaAuth: ProbeItem; iexRealtime: ProbeItem; sipHistorical: ProbeItem; sipRealtime: ProbeItem;
   fmpIncome: ProbeItem; fmpEarnings: ProbeItem; fred: ProbeItem;
+  xetraDaily?: ProbeItem; xetraIntraday?: ProbeItem; xetraQuote?: ProbeItem;
   summary: string[];
 }
 
@@ -44,7 +45,22 @@ export async function runProbe(d: Deps): Promise<ProbeResult> {
   s.push(sipHistorical.ok ? "Tageskerzen via SIP (historisch, >15 Min alt) verfügbar." : "SIP-Tageskerzen nicht abrufbar: DAILY_FEED=iex setzen (Dollarumsatz-Schwelle dann senken).");
   if (!fmpIncome.ok) s.push("Wachstumsdaten (FMP) nicht verfügbar: Urteil bleibt „offen“, Setups werden nicht unterdrückt.");
   if (!fmpEarnings.ok) s.push("Earnings-Kalender (FMP) nicht verfügbar: Episodic Pivot deaktiviert.");
-  const res: ProbeResult = { at: now, alpacaAuth, iexRealtime, sipHistorical, sipRealtime, fmpIncome, fmpEarnings, fred, summary: s };
+  let xetra: Pick<ProbeResult, "xetraDaily" | "xetraIntraday" | "xetraQuote"> = {};
+  if (d.cfg.markets.includes("DE")) {
+    const mk = d.markets.DE, k = ["XETR:SAP"];
+    const xd = await t(async () => { const r = await mk.data.dailyBars(k, addDays(mk.lastCompletedSession(now, 20), -10), now); return `${r.bars.get(k[0])?.length ?? 0} Tageskerzen (EUR)`; });
+    const xi = await t(async () => { const r = await mk.data.bars5(k, now - 3 * DAY, now); const b = r.get(k[0]) ?? []; return `${b.length} 5-Minuten-Kerzen (EUR)`; });
+    const xq = await t(async () => {
+      const q = (await mk.data.quotes(k, now)).get(k[0])?.quote; if (!q) throw new Error("kein Quote");
+      const s = mk.sessionFor(mk.dateOf(now)); const open = !!s && now >= s.open && now <= s.close;
+      return open ? `Quote ${q.currency ?? "?"}, Alter ${Math.round((now - q.time) / MIN)} Min (Handelszeit)` : `Quote ${q.currency ?? "?"}; außerhalb der Handelszeit ist die Verzögerung nicht messbar`;
+    });
+    xetra = { xetraDaily: xd, xetraIntraday: xi, xetraQuote: xq };
+    if (!xd.ok) s.push(`Xetra: ${xd.detail} – Tageskerzen nicht verfügbar; deutscher Scan ist aus (keine Buchung, kein US-Ersatz).`);
+    else if (!xi.ok || !xq.ok) s.push("Xetra: Tageskerzen ja, aber Intraday/Quote nicht verfügbar – der Vormittagsscan braucht einen Tarif mit Xetra-Intraday.");
+    else s.push("Xetra: Tages-, 5-Minuten-Kerzen und Quote abrufbar (Echtzeit bzw. Verzögerung während der Handelszeit prüfen).");
+  }
+  const res: ProbeResult = { at: now, ...xetra, alpacaAuth, iexRealtime, sipHistorical, sipRealtime, fmpIncome, fmpEarnings, fred, summary: s };
   await setMeta(d.db, "probe", res, now);
   return res;
 }

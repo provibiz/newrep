@@ -12,11 +12,13 @@ import type { QuoteInfo } from "../marketdata";
 import { SETUP_LABEL, type Prepared, type SetupId } from "../types";
 import { checkEntry } from "../entry";
 import { sizePosition, type OpenPosition } from "../sizing";
-import { entryMail, missedMail, watchMail, feedText } from "../mail";
+import { entryMail, missedMail, watchMail, ruleStatus } from "../mail";
+
 import { enqueue } from "../outbox";
 import { createToken } from "../tokens";
 import type { QqqDecision } from "../market";
 import { spContext, growthFor } from "./context";
+import { candidateInfo } from "./prewarn";
 import { decidePermission, getStance, type Permission } from "../permission";
 import type { Regime } from "../regime";
 
@@ -32,10 +34,10 @@ export async function regimeLines(d: Deps, market = "US"): Promise<string[]> {
 }
 
 /** Trigger erreicht, Einstieg nicht zulässig: protokollieren und einmal je Tag „Nur beobachten“ melden. */
-export async function watchOnly(d: Deps, symbol: string, hs: Hit[], perm: Permission, extraReasons: string[], qi: QuoteInfo | undefined, checkedAt: number, qqq: QqqDecision, market = "US"): Promise<SignalOutcome> {
-  const cfg = d.cfg, day = nyDate(checkedAt);
+export async function watchOnly(d: Deps, symbol: string, hs: Hit[], perm: Permission, extraReasons: string[], qi: QuoteInfo | undefined, checkedAt: number, qqq: QqqDecision, market = "US", once = false): Promise<SignalOutcome> {
+  const cfg = d.cfg, day = d.markets[market as "US" | "DE"].dateOf(checkedAt);
   const ids = hs.map((h) => h.row.id).sort();
-  const sigId = `watch|${ids.join("+")}|${day}`;
+  const sigId = once ? `watch|${ids.join("+")}|einmal` : `watch|${ids.join("+")}|${day}`;
   const reasons = [...new Set([...perm.blocked.map((b) => b.reason), ...extraReasons])];
   const currency = hs[0].p.currency ?? "USD";
   const trigger = Math.min(...hs.map((h) => h.trigger)), stop = Math.max(...hs.map((h) => h.stop));
@@ -51,7 +53,8 @@ export async function watchOnly(d: Deps, symbol: string, hs: Hit[], perm: Permis
   if (!isNew) return "duplicate";
   for (const h of hs) await run(d.db, "UPDATE prepared SET state_reason=? WHERE id=? AND state='active'", reasons[0].slice(0, 300), h.row.id);
   if (cfg.mailWatch) {
-    const m = watchMail(cfg, { symbol, setups: hs.map((h) => h.p.setup), signalTime, preparedAt, trigger, stop, currency, check: check.observed ? check : null, reasons, regime: await regimeLines(d, market), stance: perm.stanceText, qqqText: qqq.text, prepared: hs.map((h) => h.p), origin: originOf(hs), source: sourceOf(hs) });
+    const rules = await rulesFor(d, market, hs, qqq, reasons);
+    const m = watchMail(cfg, { symbol, setups: hs.map((h) => h.p.setup), signalTime, preparedAt, trigger, stop, currency, check: check.observed ? check : null, reasons, regime: await regimeLines(d, market), stance: perm.stanceText, qqqText: qqq.text, prepared: hs.map((h) => h.p), origin: originOf(hs), source: sourceOf(hs), candidate: await candidateInfo(d, symbol), rules });
     await enqueue(d, { id: `mail|${sigId}`, kind: "watch", subject: m.subject, text: m.text, sendBy: checkedAt + cfg.entryMailMaxAgeMin * MIN, signalId: sigId });
   }
   return "watch_only";
@@ -84,7 +87,10 @@ export async function fireSignal(d: Deps, symbol: string, hs: Hit[], qi: QuoteIn
     }
     return "unverifiable";
   }
-  if (check.status === "invalid_stop") { await mark("invalid", check.reason); return "unverifiable"; }
+  if (check.status === "invalid_stop") {
+    // Stoppweite/Stopp-Lage verletzt eine Risikoregel: ausdrücklich „Nur beobachten“ mit Grund (einmal je Setup), kein Kauf-Link
+    return watchOnly(d, symbol, hs, { ...perm, permitted: false, blocked: [] }, [`Risikoregel Stopp: ${check.reason}`], qi, checkedAt, qqq, market, true);
+  }
 
   const isNew = await insertIgnore(d.db, "signals", { ...base, status: check.status === "missed" ? "missed" : "pending_eval", status_reason: check.reason || null });
   if (!isNew) return "duplicate";
@@ -109,7 +115,7 @@ export async function fireSignal(d: Deps, symbol: string, hs: Hit[], qi: QuoteIn
   const ctx = { sp, qqq, growth, size, regime, stance: perm.stanceText, reasons: hs.map((h) => h.reasons), prepared: hs.map((h) => h.p) };
   const link = cfg.baseUrl ? `${cfg.baseUrl}/a/${await createToken(d.db, d.pepper, sigId, "buy", 3 * 86_400_000, checkedAt)}` : null;
   const m = entryMail(cfg, { symbol, setups, signalTime, trigger, stop, check, size, reasons: hs.flatMap((h) => h.reasons), sp, qqq, growth, prepared: hs.map((h) => h.p), link, feedUsed: d.markets[market as "US" | "DE"].data.feedLabel,
-    regime, stance: perm.stanceText, preparedAt, origin, source });
+    regime, stance: perm.stanceText, preparedAt, origin, source, candidate: await candidateInfo(d, symbol), rules: await rulesFor(d, market, hs, qqq, []) });
   await run(d.db, "UPDATE signals SET status='confirmed', permission='permitted', permission_reasons=?, ctx=?, shares=?, planned_risk_usd=?, outbox_id=? WHERE id=?", JSON.stringify([perm.stanceText]), JSON.stringify(ctx), size.shares, size.plannedRisk, `mail|${sigId}`, sigId);
   await insertIgnore(d.db, "positions", { id: `pos|${sigId}`, signal_id: sigId, symbol, status: "pending", initial_stop: stop, stop, shares: size.shares, entry: check.observed, fees: 0, created_at: checkedAt, currency, market });
   await mark("fired", null);
@@ -117,3 +123,13 @@ export async function fireSignal(d: Deps, symbol: string, hs: Hit[], qi: QuoteIn
   return "confirmed";
 }
 export { SETUP_LABEL, getStance, decidePermission };
+
+/** Regelstatus-Block: Sperren / nur Kontext / fehlende Daten. */
+async function rulesFor(d: Deps, market: string, hs: Hit[], qqq: QqqDecision, blocks: string[]): Promise<string[]> {
+  const [sp, growth] = await Promise.all([spContext(d), growthFor(d, hs[0].row.symbol)]);
+  const reg = await getMeta<Regime>(d.db, `regime:${market}`);
+  const us = market === "DE"
+    ? `Beim deutschen Vormittagsscan ist nur der Schluss des letzten abgeschlossenen US-Handelstags (${sp.lastCompleted}) bekannt; er ist reiner Kontext und sperrt keinen Xetra-Einstieg. Die US-Börse ist noch geschlossen oder hat gerade erst geöffnet, der S&P-500-Wert für diesen Tag erscheint bei FRED erst am US-Folgetag.`
+    : undefined;
+  return ruleStatus({ blocks, sp, growth, qqq, regimeKnown: !!reg, leadershipKnown: !!reg?.leadership, market: market as "US" | "DE", prepared: hs.map((h) => h.p), usInfo: us });
+}
