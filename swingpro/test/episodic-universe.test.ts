@@ -77,7 +77,7 @@ describe("Universum, Symbolwechsel, Splits", () => {
     await runDaily(d);
     expect((await all(db, "SELECT symbol FROM assets")).map((a: any) => a.symbol)).toEqual(["DEMX"]);
     expect(await loadSeries(db, "DEMO", "1d")).toHaveLength(0);
-    expect((await getMeta<any>(db, "universe_stats")).renamed).toEqual(["DEMO → DEMX"]);
+    expect((await getMeta<any>(db, "universe_stats:US")).renamed).toEqual(["DEMO → DEMX"]);
   });
   it("Split: angepasste Historie weicht ab → Reihe neu geladen, offene Position zur Prüfung markiert, kein automatisches Nachziehen", async () => {
     const db = createDb(), sc = buildScenario(); const d = makeDeps(db, cfgOf(), T.daily, { alpaca: sc.alpaca });
@@ -87,9 +87,9 @@ describe("Universum, Symbolwechsel, Splits", () => {
     sc.alpaca.rawD.set("DEMO", half);
     d.clock.t = Date.parse("2026-11-24T22:10:00Z");
     await runDaily(d);
-    expect((await getMeta<any>(db, "universe_stats")).resynced).toBeGreaterThan(0);
+    expect((await getMeta<any>(db, "universe_stats:US")).resynced).toBeGreaterThan(0);
     expect((await one<any>(db, "SELECT needs_review FROM positions WHERE id='p1'")).needs_review).toBe(1);
-    const lines = await reviewPositions(d);
+    const lines = await reviewPositions(d, d.markets.US);
     expect(lines[0]).toMatch(/Split erkannt/);
     expect((await one<any>(db, "SELECT stop FROM positions WHERE id='p1'")).stop).toBe(95);
   });

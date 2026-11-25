@@ -8,6 +8,8 @@ import type { SpContext, QqqDecision } from "./market";
 import type { GrowthResult } from "./growth";
 import type { EntryCheck } from "./entry";
 import { STANCE_LABEL } from "./permission";
+import { displaySymbol, marketOfKey } from "./markets";
+const mkt = (key: string) => (marketOfKey(key) === "DE" ? "Markt: Xetra (EUR)" : "Markt: USA (Nasdaq/NYSE, USD)");
 
 export interface Mail { subject: string; text: string }
 const px = (x: number) => x.toFixed(2);
@@ -43,12 +45,12 @@ export interface PrewarnItem { symbol: string; prepared: Prepared[]; rsPct?: num
 export function prewarnMail(cfg: Config, items: PrewarnItem[], now: number): Mail {
   const first = items[0];
   const subj = items.length === 1
-    ? `Vorwarnung · ${first.symbol} · ${names(first.prepared.map((p) => p.setup))}`
-    : `Vorwarnung · ${items.length} Setups · ${items.slice(0, 3).map((i) => i.symbol).join(", ")}${items.length > 3 ? " …" : ""}`;
+    ? `Vorwarnung · ${displaySymbol(first.symbol)} · ${names(first.prepared.map((p) => p.setup))}`
+    : `Vorwarnung · ${items.length} Setups · ${items.slice(0, 3).map((i) => displaySymbol(i.symbol)).join(", ")}${items.length > 3 ? " …" : ""}`;
   const lines = [modeLine(cfg) + `Stufe 1 von 3 – Setup vorbereitet (noch KEIN Trigger, KEIN Einstieg) · Stand ${formatBerlin(now)}${tzNote(now)}`, `${feedText(cfg)}`, ""];
   for (const it of items) {
     for (const p of it.prepared) {
-      lines.push(`${it.symbol} · ${SETUP_LABEL[p.setup]} (${p.timeframe === "1h" ? "Stundenchart" : "Tageschart"})`,
+      lines.push(`${displaySymbol(it.symbol)} · ${SETUP_LABEL[p.setup]} (${p.timeframe === "1h" ? "Stundenchart" : "Tageschart"}) · ${mkt(it.symbol)}`,
         p.needsHourClose ? `  Auslöser: Schluss der ersten Handelsstunde (10:30 New York) nicht unter der Eröffnung – ausdrücklich Stundenschluss, kein früheres Signal`
           : `  Auslösemarke: 5-Minuten-Schluss über ${px(p.trigger)}`,
         `  Geplanter Stopp: ${px(p.stop)} ${cur(p)} (Idee widerlegt bei Schluss/Tief unter ${px(p.invalidateBelow)})`,
@@ -74,30 +76,31 @@ export interface EntryParts {
 export function entryMail(cfg: Config, e: EntryParts): Mail {
   const c = e.check;
   const lines = [
-    modeLine(cfg) + `Signal: ${formatBerlin(e.signalTime)} (${formatNy(e.signalTime)})${tzNote(e.signalTime)}`,
-    `Auslöser: ${px(e.trigger)} · Kurs ${px(c.observed!)} USD, Zeitstempel ${formatBerlin(c.quoteTime!)}, geprüft ${formatBerlinTime(c.checkedAt)} (Alter ${Math.round(c.quoteAgeSec!)} s)`,
-    `Stopp: ${px(e.stop)} USD · Abstand ${px(c.observed! - e.stop)} USD je Aktie (1R)` + (e.prepared.find((p) => p.stopBasis)?.stopBasis ? `\nStopp-Bezug: ${e.prepared.find((p) => p.stopBasis)!.stopBasis}` : ""),
-    `Stückzahl: ${e.size.shares} (Einsatz ${money(cfg, e.size.costUsd)}) · geplantes Risiko ${money(cfg, e.size.plannedRiskUsd)} = ${(e.size.plannedRiskUsd / e.size.capitalUsd * 100).toFixed(2)} % des Depots`,
-    `Daten: ${e.feedUsed} · Limit-Orders bleiben bei dir; Kurs vor Order erneut prüfen.`, "",
+    modeLine(cfg) + `Signal: ${formatBerlin(e.signalTime)}${marketOfKey(e.symbol) === "US" ? ` (${formatNy(e.signalTime)})${tzNote(e.signalTime)}` : ""} · Modellentscheidung`,
+    `Auslöser: ${px(e.trigger)} · Kurs ${px(c.observed!)} ${e.size.currency}, Zeitstempel ${formatBerlin(c.quoteTime!)}, geprüft ${formatBerlinTime(c.checkedAt)} (Alter ${Math.round(c.quoteAgeSec!)} s)`,
+    `Stopp: ${px(e.stop)} ${e.size.currency} · Abstand ${px(c.observed! - e.stop)} ${e.size.currency} je Aktie (1R)` + (e.prepared.find((p) => p.stopBasis)?.stopBasis ? `\nStopp-Bezug: ${e.prepared.find((p) => p.stopBasis)!.stopBasis}` : ""),
+    `Stückzahl: ${e.size.shares} (Einsatz ${money(cfg, e.size.cost, e.size.currency)}) · geplantes Risiko ${money(cfg, e.size.plannedRisk, e.size.currency)} = ${(e.size.plannedRisk / e.size.capital * 100).toFixed(2)} % des Depots`,
+    `${mkt(e.symbol)} · Daten: ${e.feedUsed} · Limit-Orders bleiben bei dir; Kurs vor Order erneut prüfen.`, "",
     `Warum interessant: ${names(e.setups)}`,
   ];
   for (const p of e.prepared) {
     lines.push(`• ${SETUP_LABEL[p.setup]} – erfüllt: ${p.conditions.join("; ")}`);
+    if (p.contextLevels?.length) lines.push(`  Kontext (kein Trigger): ${p.contextLevels.map((c) => `${px(c.level)} ${cur(p)} (${c.label})`).join("; ")}`);
   }
   lines.push("• Bestätigung heute: " + e.reasons.join(" | "), "",
     `Ist der Einstieg noch sinnvoll? Der Kurs liegt ${c.chaseR!.toFixed(2)} R über dem Auslöser (Grenze ${cfg.maxChaseR} R). Widerlegt ist die Idee unter ${px(e.stop)}.`, "",
     ...stagesBlock({ preparedAt: e.preparedAt ?? e.signalTime, triggerAt: e.signalTime, permitted: true, reasons: [e.stance ?? "Marktvorgabe: offen"] }), "",
     `Marktkontext`, ...(e.regime ?? []), e.sp.text, e.qqq.text, e.growth.text, "",
-    `Größenberechnung: ${e.size.limitedBy === "ok" ? "" : `begrenzt durch ${e.size.limitedBy}; `}Risikobudget ${money(cfg, e.size.riskBudgetUsd)}, verfügbar ${money(cfg, e.size.availableUsd)}, offenes Risiko vorher ${money(cfg, e.size.openRiskUsd)}.`,
-    cfg.accountCurrency === "EUR" ? `Wechselkurs: 1 EUR = ${cfg.fxUsdPerEur} USD (${cfg.fxSource}, ${cfg.fxDate}) – Orders laufen in USD.` : "Depot- und Handelswährung: USD.", "");
+    `Größenberechnung: ${e.size.limitedBy === "ok" ? "" : `begrenzt durch ${e.size.limitedBy}; `}Risikobudget ${money(cfg, e.size.riskBudget, e.size.currency)}, verfügbar ${money(cfg, e.size.available, e.size.currency)}, offenes Risiko vorher ${money(cfg, e.size.openRisk, e.size.currency)}.`,
+    cfg.fxUsdPerEur ? `Wechselkurs: 1 EUR = ${cfg.fxUsdPerEur} USD (${cfg.fxSource}, ${cfg.fxDate}) – Order in Handelswährung ${e.size.currency}, Depot in ${cfg.accountCurrency}.` : `Depot- und Handelswährung: ${e.size.currency}.`, "");
   if (e.link) lines.push(`Gekauft? Kaufkurs und Stückzahl bestätigen (Link öffnet nur ein Formular, nichts wird gespeichert):`, e.link, `Nicht gekauft? Dort „ausgelassen“ wählen.`);
   lines.push("", modelNote(e.origin, e.source));
-  return { subject: `Einstieg bestätigt · ${e.symbol} · ${names(e.setups)}`, text: lines.join("\n") };
+  return { subject: `Einstieg bestätigt · ${displaySymbol(e.symbol)} · ${names(e.setups)}`, text: lines.join("\n") };
 }
 
 export function missedMail(cfg: Config, symbol: string, setups: SetupId[], trigger: number, stop: number, c: EntryCheck, signalTime: number): Mail {
   return {
-    subject: `Einstieg verpasst · ${symbol} · ${names(setups)}`,
+    subject: `Einstieg verpasst · ${displaySymbol(symbol)} · ${names(setups)}`,
     text: [modeLine(cfg) + `Signal: ${formatBerlin(signalTime)}`,
       `Auslöser: ${px(trigger)} · Kurs ${c.observed ? px(c.observed) : "–"} (${c.quoteTime ? formatBerlin(c.quoteTime) : "ohne Zeit"})`, `Stopp (geplant): ${px(stop)}`,
       `Status: ${c.reason}`, "", "Es wird kein Kauf empfohlen. Für dieses Setup kommt keine weitere Meldung; ein neuer, eigenständiger Ausbruch löst wieder aus."].join("\n"),
@@ -105,7 +108,7 @@ export function missedMail(cfg: Config, symbol: string, setups: SetupId[], trigg
 }
 
 export function positionMail(cfg: Config, kind: string, symbol: string, body: string[], now: number): Mail {
-  return { subject: `${kind} · ${symbol}`, text: [modeLine(cfg) + `Stand ${formatBerlin(now)}`, ...body].join("\n") };
+  return { subject: `${kind} · ${displaySymbol(symbol)}`, text: [modeLine(cfg) + `Stand ${formatBerlin(now)}`, ...body].join("\n") };
 }
 
 export function linkify(text: string): string {
@@ -124,8 +127,8 @@ export function watchMail(cfg: Config, w: WatchParts): Mail {
   const lines = [
     modeLine(cfg) + `NUR BEOBACHTEN – kein Einstieg. Technischer Trigger erreicht, aber Einstieg nicht zulässig.`,
     `Grund: ${w.reasons.join(" | ")}`,
-    `Signal: ${formatBerlin(w.signalTime)} (${formatNy(w.signalTime)})${tzNote(w.signalTime)} · Modellentscheidung`,
-    `Trigger: ${px(w.trigger)} ${w.currency}` + (c?.observed ? ` · Kurs ${px(c.observed)} ${w.currency}, Zeitstempel ${c.quoteTime ? formatBerlin(c.quoteTime) : "unbekannt"}, geprüft ${formatBerlinTime(c.checkedAt)}` : " · kein frischer Kurs geprüft"),
+    `Signal: ${formatBerlin(w.signalTime)}${marketOfKey(w.symbol) === "US" ? ` (${formatNy(w.signalTime)})${tzNote(w.signalTime)}` : ""} · Modellentscheidung`,
+    `${mkt(w.symbol)} · Trigger: ${px(w.trigger)} ${w.currency}` + (c?.observed ? ` · Kurs ${px(c.observed)} ${w.currency}, Zeitstempel ${c.quoteTime ? formatBerlin(c.quoteTime) : "unbekannt"}, geprüft ${formatBerlinTime(c.checkedAt)}` : " · kein frischer Kurs geprüft"),
     `Geplanter Stopp wäre ${px(w.stop)} ${w.currency}` + (w.prepared.find((p) => p.stopBasis)?.stopBasis ? ` (Stopp-Bezug: ${w.prepared.find((p) => p.stopBasis)!.stopBasis})` : "") + " – keine Stückzahl, kein Kauf-Link, keine Kaufbestätigung.", "",
     `Warum interessant: ${names(w.setups)}`,
     ...w.prepared.map((p) => `• ${SETUP_LABEL[p.setup]} – erfüllt: ${p.conditions.join("; ")}`), "",
@@ -134,6 +137,6 @@ export function watchMail(cfg: Config, w: WatchParts): Mail {
     "Das Setup bleibt vorbereitet. Ändert sich deine Marktvorgabe, kann ein späterer Trigger wieder zulässig sein; ein inzwischen davongelaufener Kurs gilt dann als „Einstieg verpasst“.", "",
     modelNote(w.origin, w.source),
   ];
-  return { subject: `Nur beobachten · ${w.symbol} · ${names(w.setups)}`, text: lines.join("\n") };
+  return { subject: `Nur beobachten · ${displaySymbol(w.symbol)} · ${names(w.setups)}`, text: lines.join("\n") };
 }
 export { STANCE_LABEL };

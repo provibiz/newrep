@@ -1,7 +1,7 @@
 /** Ausdrücklich bestätigte Nutzeraktionen. Jede Zustandsänderung ist über idem_key idempotent. */
 import type { Deps } from "./deps";
 import { all, one, run, insertIgnore } from "./store";
-import { toUsd, fromUsd } from "./config";
+import { fxRate } from "./config";
 
 export class ActionError extends Error {}
 const fin = (x: unknown, name: string, min = 0, strict = false): number => {
@@ -61,5 +61,7 @@ export async function positionSummary(d: Deps, posId: string) {
   const r = p.entry && p.initial_stop ? p.entry - p.initial_stop : null;
   const entryFees = events.filter((e) => e.type === "buy_confirmed").map((e) => JSON.parse(e.data).fees).reduce((s: number, x: number) => s + x, 0);
   const pnlTotal = p.realized_pnl_usd === null ? null : p.realized_pnl_usd - entryFees;
-  return { p, events, r, pnlTotal, pnlAccount: pnlTotal === null ? null : fromUsd(d.cfg, pnlTotal), usd: (x: number) => toUsd(d.cfg, x) };
+  let pnlAccount: number | null = null;
+  try { pnlAccount = pnlTotal === null ? null : pnlTotal * fxRate(d.cfg, p.currency ?? "USD", d.cfg.accountCurrency); } catch { pnlAccount = null; }   // ohne dokumentierten Kurs keine Umrechnung
+  return { p, events, r, pnlTotal, pnlAccount, currency: p.currency ?? "USD" };
 }

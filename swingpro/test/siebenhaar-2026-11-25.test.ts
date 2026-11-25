@@ -126,7 +126,7 @@ describe("Crocs – Konsolidierung nach Quartalszahlen mit Inside Day", () => {
     const n = w.mail.sent.length; w.d.clock.t += 5 * MIN; breakout5("CROX", w.sc, "2026-11-25", 160, 160.15, 160.25, w.d); await runIntraday(w.d);
     expect(w.mail.sent.length).toBe(n);                                                   // keine Wiederholung am selben Tag
     // Marktvorgabe später auf „offen“: derselbe vorbereitete Trigger kann zulässig werden
-    await setStance(w.d, "open", "Marktlage gedreht");
+    await setStance(w.d, "open", "Marktlage gedreht", { hours: 24 });
     w.d.clock.t += 5 * MIN; breakout5("CROX", w.sc, "2026-11-25", 160, 160.2, 160.3, w.d); await runIntraday(w.d);
     expect(w.mail.sent.some((x) => x.subject.startsWith("Einstieg bestätigt"))).toBe(true);
   });
@@ -278,10 +278,10 @@ describe("Marktzustand getrennt vom einzelnen Chart", () => {
     for (let i = 0; i < 12; i++) await run(db, "INSERT INTO metrics (symbol,asof,price,passed,updated_at,nh,nl,a50,a200,n252) VALUES (?,?,?,?,?,?,?,?,?,?)", "S" + i, "2026-11-23", 50, 0, 1, i < 1 ? 1 : 0, i < 5 ? 1 : 0, 3, 4, 260);
     const etf = (r: number) => Array.from({ length: 160 }, (_, i) => { const t = nyToUtc(2026, 8, 3 + i, 0, 0); return { t: iso(t), o: 100, h: 101, l: 99, c: 100 * (1 + (r * i) / 159), v: 1000 }; });
     for (const s of REGIME_ETFS) sc.alpaca.rawD.set(s, etf(s === "XLV" ? 0.1 : 0.01) as any);
-    const reg = await updateRegime(d, "2026-11-23", T.daily);
+    const reg = await updateRegime(d, d.markets.US, "2026-11-23", T.daily);
     expect(reg.breadth).toMatchObject({ n: 12, newHighs: 1, newLows: 5 }); expect(reg.leadership?.leaders[0].symbol).toBe("XLV");
     expect(reg.text.join("\n")).toMatch(/Marktbreite[\s\S]*Führung[\s\S]*Handelswoche/);
-    expect((await one<any>(db, "SELECT asof FROM regime")).asof).toBe("2026-11-23");
+    expect((await one<any>(db, "SELECT asof FROM regime")).asof).toBe("US:2026-11-23");
   });
 });
 
@@ -300,10 +300,10 @@ describe("Drei getrennte Entscheidungen und Kennzeichnung", () => {
   });
   it("Marktvorgabe lässt sich über die geschützte Statusseite setzen (nur gleiche Herkunft)", async () => {
     const db = createDb(), d = makeDeps(db, base(), T.daily); const env = { STATUS_TOKEN: "status-token-0123456789" };
-    const post = (origin?: string) => handleRequest(new Request("https://x.example/admin/stance", { method: "POST", body: new URLSearchParams({ stance: "cash", note: "Erholungsversuch" }), headers: { authorization: "Bearer " + env.STATUS_TOKEN, ...(origin ? { origin } : {}) } }), d, env);
+    const post = (origin?: string) => handleRequest(new Request("https://x.example/admin/stance", { method: "POST", body: new URLSearchParams({ stance: "cash", note: "Erholungsversuch", hours: "24", market: "ALL" }), headers: { authorization: "Bearer " + env.STATUS_TOKEN, ...(origin ? { origin } : {}) } }), d, env);
     expect((await post("https://evil.example")).status).toBe(403);
     expect((await post()).status).toBe(303);
-    expect(await getStance(d)).toMatchObject({ stance: "cash", note: "Erholungsversuch", source: "user" });
+    expect(await getStance(d)).toMatchObject({ stance: "cash", note: "Erholungsversuch", source: "manual" });
   });
   it("veröffentlichte Watchlist-Idee: externe Herkunft, kein Trade, Kennzeichnung in Vorwarnung und Signal", async () => {
     const w = await world({ symbol: "CROX", name: "Crocs Inc. Common Stock", bars: croxDaily(), asof: LAST, events: [] });   // Bot findet selbst nichts (keine Katalysator-Daten)

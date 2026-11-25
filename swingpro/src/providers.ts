@@ -1,4 +1,4 @@
-/** Datenanbieter (Alpaca, FMP, FRED) und Resend. Alle Netzwerkaufrufe gehen über eine injizierbare fetch-Funktion. */
+/** Datenanbieter (Alpaca, FMP, FRED). Alle Netzwerkaufrufe gehen über eine injizierbare fetch-Funktion. */
 import type { Bar } from "./types";
 import { HOUR, MIN, iso, nyDate } from "./time";
 import { sessionFor } from "./calendar";
@@ -141,17 +141,5 @@ export async function fetchFredSp500(f: Fetch, from: string, to: string): Promis
   return res.text();
 }
 
-// ───────────────────────── Resend ─────────────────────────
 export interface MailMsg { id: string; from: string; to: string; subject: string; text: string; html?: string | null }
-export async function sendResend(f: Fetch, apiKey: string, m: MailMsg): Promise<{ id: string }> {
-  const res = await f("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "Idempotency-Key": m.id.slice(0, 256), "User-Agent": "SwingPro/1.0" },
-    body: JSON.stringify({ from: m.from, to: [m.to], subject: m.subject, text: m.text, ...(m.html ? { html: m.html } : {}) }),
-  });
-  if (!res.ok) throw new HttpError(res.status, "api.resend.com", await res.text().catch(() => ""), Number(res.headers.get("retry-after")) || undefined);
-  const body: any = await res.json();
-  if (!body?.id) throw new Error("Resend: keine Nachrichten-ID in der Antwort");
-  return { id: String(body.id) };
-}
 export { iso };

@@ -90,3 +90,8 @@ export function qqqDecision(cfg: Config, qqq: Bar[]): QqqDecision {
       (blocked.length ? ` → blockiert ${blocked.length} Setup-Typen` : " → blockiert nichts"),
   };
 }
+
+/** Der QQQ-Stundenfilter gilt nur für US-Titel. Für Xetra-Titel entscheidet die Marktlage des Marktes (permission.ts), kein US-Index. */
+export function qqqNotApplicable(cfg: Config): QqqDecision {
+  return { mode: cfg.qqqFilter, trendOk: true, recovery: false, close: null, sma20: null, barEnd: null, blocked: [], dataOk: true, text: "QQQ-Filter: gilt nur für US-Titel (für Xetra nicht angewendet; es gibt keinen US-Ersatz für deutsche Titel)" };
+}

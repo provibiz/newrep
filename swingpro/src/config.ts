@@ -8,7 +8,10 @@ export interface Env {
   ALPACA_KEY_ID: string;
   ALPACA_SECRET: string;
   FMP_API_KEY?: string;
-  RESEND_API_KEY?: string;
+  GMAIL_CLIENT_ID?: string;
+  GMAIL_CLIENT_SECRET?: string;
+  GMAIL_REFRESH_TOKEN?: string;
+  TWELVEDATA_API_KEY?: string;
   STATUS_TOKEN: string;
   TOKEN_PEPPER: string;
   // Variablen
@@ -17,6 +20,12 @@ export interface Env {
 
 export interface Config {
   mode: "paper" | "live";
+  markets: ("US" | "DE")[];
+  deMinPrice: number; deMinTurnover: number; deMaxWatch: number;
+  autoStance: boolean; autoStaleSessions: number; autoStaleStance: "cash" | "selective" | "open";
+  autoBearishFlagsCash: number; autoBearishFlagsSelective: number; autoMinAbove50Pct: number; autoMinHighLowRatio: number;
+  stanceMaxDays: number;
+  indexSources: string;
   feed: "iex" | "sip";
   dailyFeed: "iex" | "sip";
   // Konto
@@ -109,8 +118,17 @@ export function loadConfig(env: Record<string, unknown>): Config {
     if (!fx || fx <= 0) throw new Error("Bei ACCOUNT_CURRENCY=EUR ist FX_USD_PER_EUR (z. B. EZB-Referenzkurs) Pflicht");
     if (!str(env.FX_DATE) || !str(env.FX_SOURCE)) throw new Error("Bei EUR sind FX_DATE und FX_SOURCE Pflicht (dokumentierter Wechselkurs)");
   }
+  const markets = str(env.MARKETS, "US").split(",").map((x) => x.trim().toUpperCase()).filter(Boolean) as ("US" | "DE")[];
+  if (!markets.length || markets.some((m) => m !== "US" && m !== "DE")) throw new Error("MARKETS: erlaubt sind US und DE (kommagetrennt)");
+  if (markets.includes("DE") && (!fx || fx <= 0 || !str(env.FX_DATE) || !str(env.FX_SOURCE))) throw new Error("MARKETS enthält DE: FX_USD_PER_EUR, FX_DATE und FX_SOURCE sind Pflicht (EUR-Kurse, dokumentierter Wechselkurs)");
   const c: Config = {
-    mode, feed, dailyFeed,
+    mode, markets, feed, dailyFeed,
+    deMinPrice: num(env.DE_MIN_PRICE, 5, "DE_MIN_PRICE"), deMinTurnover: num(env.DE_MIN_TURNOVER_EUR, 5_000_000, "DE_MIN_TURNOVER_EUR"), deMaxWatch: num(env.DE_MAX_WATCH, 150, "DE_MAX_WATCH"),
+    autoStance: bool(env.AUTO_STANCE, true), autoStaleSessions: num(env.AUTO_STALE_SESSIONS, 3, "AUTO_STALE_SESSIONS"),
+    autoStaleStance: str(env.AUTO_STALE_STANCE, "cash") as Config["autoStaleStance"],
+    autoBearishFlagsCash: num(env.AUTO_BEARISH_FLAGS_CASH, 3, "AUTO_BEARISH_FLAGS_CASH"), autoBearishFlagsSelective: num(env.AUTO_BEARISH_FLAGS_SELECTIVE, 1, "AUTO_BEARISH_FLAGS_SELECTIVE"),
+    autoMinAbove50Pct: num(env.AUTO_MIN_ABOVE50_PCT, 40, "AUTO_MIN_ABOVE50_PCT"), autoMinHighLowRatio: num(env.AUTO_MIN_HIGH_LOW_RATIO, 1, "AUTO_MIN_HIGH_LOW_RATIO"),
+    stanceMaxDays: num(env.STANCE_MAX_DAYS, 14, "STANCE_MAX_DAYS"), indexSources: str(env.INDEX_SOURCES),
     accountCurrency: cur,
     capital: num(env.CAPITAL, 10000, "CAPITAL"),
     fxUsdPerEur: fx, fxDate: str(env.FX_DATE) || null, fxSource: str(env.FX_SOURCE) || null,
@@ -149,7 +167,7 @@ export function loadConfig(env: Record<string, unknown>): Config {
     trailBufferCents: num(env.TRAIL_BUFFER_CENTS, 1, "TRAIL_BUFFER_CENTS"),
     barLagSec: num(env.BAR_LAG_SEC, 60, "BAR_LAG_SEC"),
     stance: str(env.MARKET_STANCE, "open") as Config["stance"], stanceNote: str(env.STANCE_NOTE),
-    stanceSelectiveSetups: str(env.STANCE_SELECTIVE_SETUPS, "first_higher_low").split(",").map((x) => x.trim()).filter(Boolean),
+    stanceSelectiveSetups: str(env.STANCE_SELECTIVE_SETUPS, "first_higher_low,ema_reclaim").split(",").map((x) => x.trim()).filter(Boolean),
     stanceWeightMin: env.STANCE_WEIGHT_MIN === undefined || env.STANCE_WEIGHT_MIN === "" ? null : num(env.STANCE_WEIGHT_MIN, 0, "STANCE_WEIGHT_MIN"),
     stanceWeightMax: env.STANCE_WEIGHT_MAX === undefined || env.STANCE_WEIGHT_MAX === "" ? null : num(env.STANCE_WEIGHT_MAX, 0, "STANCE_WEIGHT_MAX"),
     mailWatch: bool(env.MAIL_WATCH, true),
@@ -179,6 +197,14 @@ export function loadConfig(env: Record<string, unknown>): Config {
   return c;
 }
 
+/** Wechselkurs from → to (nur USD/EUR). Ohne dokumentierten Kurs wird nie umgerechnet. */
+export function fxRate(c: Config, from: string, to: string): number {
+  if (from === to) return 1;
+  if (!c.fxUsdPerEur) throw new Error(`Kein dokumentierter Wechselkurs für ${from}→${to} (FX_USD_PER_EUR fehlt)`);
+  if (from === "EUR" && to === "USD") return c.fxUsdPerEur;
+  if (from === "USD" && to === "EUR") return 1 / c.fxUsdPerEur;
+  throw new Error(`Währungspaar ${from}/${to} nicht unterstützt`);
+}
 /** Umrechnung Kontowährung -> USD. */
 export function toUsd(c: Config, amount: number): number {
   return c.accountCurrency === "USD" ? amount : amount * (c.fxUsdPerEur as number);

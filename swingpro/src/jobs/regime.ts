@@ -1,27 +1,32 @@
 import type { Deps } from "../deps";
-import { all, one, setMeta, upsert, getMeta } from "../store";
-import { dailyBars, type RawBar } from "../providers";
+import { one, setMeta, upsert, getMeta } from "../store";
 import { addDays } from "../time";
 import { REGIME_ETFS, breadthFrom, leadership, followThroughDay, thinWeek, describeRegime, type Regime, type Ftd } from "../regime";
+import type { Market } from "../markets";
 
-/** Tägliche Marktlage: Breite aus dem Universum, Führung und Erholungsversuch aus Referenz-ETFs. Fehlende Teile bleiben „nicht bewertet“. */
-export async function updateRegime(d: Deps, last: string, now: number): Promise<Regime> {
-  const src = `Alpaca-Tageskerzen (${d.cfg.dailyFeed === "sip" ? "SIP" : "IEX"}, Split-bereinigt)`;
-  const row = await one<any>(d.db, "SELECT COUNT(*) n, COALESCE(SUM(nh),0) nh, COALESCE(SUM(nl),0) nl, COALESCE(SUM(a50),0) a50, COALESCE(SUM(a200),0) a200 FROM metrics WHERE asof=? AND n252>=252 AND price IS NOT NULL", last);
-  const breadth = row ? breadthFrom(row, last, src) : null;
+/**
+ * Tägliche Marktlage je Markt: Breite aus dem Universum dieses Marktes. USA zusätzlich Führung (Sektor-ETFs) und Erholungsversuch (SPY/QQQ).
+ * Deutschland: Führungsgruppen und Index-Erholungsversuch sind mangels angebundener Index-/ETF-Daten „nicht bewertet“ (sichtbare Lücke).
+ */
+export async function updateRegime(d: Deps, mk: Market, last: string, now: number): Promise<Regime> {
+  const src = `${mk.data.feedLabel}, Tageskerzen, Split-bereinigt`;
+  const row = await one<any>(d.db, "SELECT COUNT(*) n, COALESCE(SUM(nh),0) nh, COALESCE(SUM(nl),0) nl, COALESCE(SUM(a50),0) a50, COALESCE(SUM(a200),0) a200 FROM metrics WHERE asof=? AND market=? AND n252>=252 AND price IS NOT NULL", last, mk.id);
+  const uni = mk.id === "US" ? undefined : "Xetra-Aktien (Stamm- und Vorzugsaktien) nach den Ausschlüssen aus REGELN.md mit mindestens 252 Handelstagen Historie";
+  const breadth = row ? breadthFrom(row, last, src, uni) : null;
   let lead = null; const ftd: Ftd[] = [];
-  try {
-    const res = await d.alpaca.bars(REGIME_ETFS, "1Day", addDays(last, -400), new Date(Math.min(d.now() - 16 * 60_000, Date.parse(last + "T23:59:00Z") + 86_400_000)).toISOString(), d.cfg.dailyFeed, 4);
-    const etf = new Map<string, ReturnType<typeof dailyBars>>();
-    for (const [s, raw] of res.bars) etf.set(s, dailyBars(raw as RawBar[]));
-    lead = leadership(etf, d.cfg, last, `${src}; Referenz-ETFs: SPDR-Sektorfonds und SPY`);
-    for (const ix of ["SPY", "QQQ"]) if (etf.get(ix)) ftd.push(followThroughDay(ix, etf.get(ix)!, d.cfg));
-  } catch { /* Führung/Erholungsversuch bleiben „nicht bewertet“ */ }
-  const reg: Regime = { asof: last, breadth, leadership: lead, ftd, thinWeek: thinWeek(last), text: [] };
+  if (mk.id === "US") {
+    try {
+      const res = await mk.data.dailyBars(REGIME_ETFS, addDays(last, -400), Math.min(d.now() - mk.dailyDelayMin * 60_000, Date.parse(last + "T23:59:00Z") + 86_400_000));
+      lead = leadership(res.bars, d.cfg, last, `${src}; Referenz-ETFs: SPDR-Sektorfonds und SPY`);
+      for (const ix of ["SPY", "QQQ"]) if (res.bars.get(ix)) ftd.push(followThroughDay(ix, res.bars.get(ix)!, d.cfg));
+    } catch { /* Führung/Erholungsversuch bleiben „nicht bewertet“ */ }
+  } else {
+    ftd.push({ index: "DAX", state: "kein Erholungsversuch", day: null, date: null, text: "Erholungsversuch/Follow-Through-Day: nicht bewertet (keine Indexdaten für DAX/MDAX angebunden)" });
+  }
+  const reg: Regime = { asof: last, breadth, leadership: lead, ftd, thinWeek: thinWeek(last, mk), text: [] };
   reg.text = describeRegime(reg);
-  await upsert(d.db, "regime", "asof", { asof: last, data: JSON.stringify(reg), updated_at: now });
-  await setMeta(d.db, "regime", reg, now);
+  await upsert(d.db, "regime", "asof", { asof: `${mk.id}:${last}`, data: JSON.stringify(reg), updated_at: now });
+  await setMeta(d.db, `regime:${mk.id}`, reg, now);
   return reg;
 }
-export const latestRegime = (d: Deps) => getMeta<Regime>(d.db, "regime");
-export { all };
+export const latestRegime = (d: Deps, market: string) => getMeta<Regime>(d.db, `regime:${market}`);

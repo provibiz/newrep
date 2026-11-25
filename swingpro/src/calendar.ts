@@ -8,7 +8,7 @@ import { addDays, dowOf, nyToUtc, parseDateKey, pad } from "./time";
 
 const key = (y: number, m: number, d: number) => `${y}-${pad(m)}-${pad(d)}`;
 
-function nthWeekday(y: number, m: number, dow: number, n: number): string {
+export function nthWeekday(y: number, m: number, dow: number, n: number): string {
   const first = dowOf(key(y, m, 1));
   const day = 1 + ((dow - first + 7) % 7) + (n - 1) * 7;
   return key(y, m, day);
@@ -18,7 +18,7 @@ function lastWeekday(y: number, m: number, dow: number): string {
   const ld = dowOf(key(y, m, last));
   return key(y, m, last - ((ld - dow + 7) % 7));
 }
-function easterSunday(y: number): string {
+export function easterSunday(y: number): string {
   const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4;
   const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
   const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;

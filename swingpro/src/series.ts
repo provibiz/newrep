@@ -39,10 +39,11 @@ export function addHourlyBars(from: number, n: number): number {
   return last;
 }
 /** Ende der n-ten Sitzung nach dem Datum `fromDate`. */
-export function addSessions(fromDate: string, n: number): number {
+export function addSessions(fromDate: string, n: number, mk?: { nextSession(d: string): string; sessionFor(d: string): { close: number } | null }): number {
   let d = fromDate;
-  for (let i = 0; i < n; i++) d = nextSession(d);
-  return sessionFor(d)!.close;
+  const next = mk ? mk.nextSession.bind(mk) : nextSession, sess = mk ? mk.sessionFor.bind(mk) : sessionFor;
+  for (let i = 0; i < n; i++) d = next(d);
+  return sess(d)!.close;
 }
 
 /** Mehrere Reihen mit einer Abfrage je 90 Symbole (D1: höchstens 100 gebundene Parameter, 1000 Abfragen je Aufruf). */

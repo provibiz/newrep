@@ -9,6 +9,8 @@ import { flushOutbox } from "../src/outbox";
 import { handleRequest } from "../src/web";
 import { all, one, run, getMeta } from "../src/store";
 import { iso, MIN, nyToUtc } from "../src/time";
+import { HttpError } from "../src/providers";
+import { GmailUnknownOutcome } from "../src/gmail";
 
 const ENV = { STATUS_TOKEN: "status-token-0123456789" };
 const auth = { authorization: "Bearer " + ENV.STATUS_TOKEN };
@@ -23,7 +25,7 @@ describe("Vollständiger Weg: Tageslauf → Vorwarnung → Auslöser → Kauf �
 
   it("Tageslauf: Universum, Ausschlüsse, Vorauswahl, Bericht", async () => {
     expect(await runDaily(d)).toMatch(/ok/);
-    const u = await getMeta<any>(db, "universe_stats");
+    const u = await getMeta<any>(db, "universe_stats:US");
     expect(u).toMatchObject({ available: 3, excluded: 2, watch: 1 });
     expect(Object.keys(u.excludedByReason).join()).toMatch(/ETF/);
     expect((await all(db, "SELECT symbol FROM metrics WHERE passed=1")).map((r: any) => r.symbol)).toEqual(["DEMO"]);
@@ -61,7 +63,7 @@ describe("Vollständiger Weg: Tageslauf → Vorwarnung → Auslöser → Kauf �
     expect(m.text).toMatch(/Wachstum \(Giering-Modell\): offen/);  // ohne FMP-Schlüssel: Befund erklärt, Signal nicht unterdrückt
     expect(m.text).toMatch(/S&P 500 · Daten fehlen/);
     expect(m.text).toMatch(/QQQ-Filter/);
-    expect(m.text).toMatch(/Feed IEX/);
+    expect(m.text).toMatch(/Alpaca IEX/);
     const sig = (await all<any>(db, "SELECT * FROM signals"))[0];
     sigId = sig.id;
     expect(sig).toMatchObject({ status: "confirmed", mode: "live", feed: "iex" });
@@ -131,14 +133,14 @@ describe("Vollständiger Weg: Tageslauf → Vorwarnung → Auslöser → Kauf �
     lows.forEach((lo, w) => { for (let i = 0; i < 5; i++) { const s = sessionFor(addDays("2026-11-02", w * 7 + i)); if (s) out.push(bar(s.close, lo + 3, lo + 5, i === 2 ? lo : lo + 1.5, lo + 4)); } });
     await saveSeries(db, "DEMO", "1d", out, 1);
     d.clock.t = Date.parse("2026-11-27T21:00:00Z");           // nach der verkürzten Sitzung vom 27.11.
-    const lines = await reviewPositions(d);
+    const lines = await reviewPositions(d, d.markets.US);
     expect(lines[0]).toMatch(/Stopp angehoben auf 101\.99/);
     const p = await one<any>(db, "SELECT stop, initial_stop FROM positions WHERE id=?", posId);
     expect(p).toMatchObject({ stop: 101.99, initial_stop: 100.89 });   // initial bleibt, 1R unverändert
     expect(mail.sent.some((x) => x.subject.startsWith("Stopp nachziehen"))).toBe(false); // erst nach flush
     await flushOutbox(d);
     expect(mail.sent.some((x) => x.subject === "Stopp nachziehen · DEMO")).toBe(true);
-    await reviewPositions(d);                                   // wiederholt: keine zweite Anhebung/Mail
+    await reviewPositions(d, d.markets.US);                                   // wiederholt: keine zweite Anhebung/Mail
     expect(mail.sent.filter((x) => x.subject === "Stopp nachziehen · DEMO").length).toBe(1);
   });
 
@@ -195,7 +197,7 @@ describe("Verpasster Einstieg, alte Kurse, Ausfälle, Paper-Modus", () => {
   });
   it("Mailausfall: Einstiegsmail wird nach Ablauf des Sendefensters verworfen, nicht verspätet nachgeschickt", async () => {
     const { db, mail, d } = await setup();
-    mail.fail = new Error("Anbieter nicht erreichbar");
+    mail.fail = new HttpError(503, "gmail.googleapis.com", "Backend Error");
     await runIntraday(d);
     expect((await one<any>(db, "SELECT state FROM outbox WHERE kind='entry'")).state).toBe("failed");
     mail.fail = null; d.clock.t = T.intraday + 12 * MIN;
@@ -205,10 +207,17 @@ describe("Verpasster Einstieg, alte Kurse, Ausfälle, Paper-Modus", () => {
   });
   it("kurzer Ausfall: Wiederholung innerhalb des Fensters sendet genau einmal (Idempotenz-Schlüssel)", async () => {
     const { db, mail, d } = await setup();
-    mail.fail = new Error("kurz weg"); await runIntraday(d);
+    mail.fail = new HttpError(503, "gmail.googleapis.com", "kurz weg"); await runIntraday(d);
     mail.fail = null; d.clock.t = T.intraday + 3 * MIN; await flushOutbox(d); await flushOutbox(d);
     expect(mail.sent.filter((m) => m.subject.startsWith("Einstieg")).length).toBe(1);
     expect((await one<any>(db, "SELECT state, accepted_at FROM outbox WHERE kind='entry'")).state).toBe("sent");
+  });
+  it("unklarer Ausgang (Netzwerkabbruch): keine automatische Wiederholung, damit keine Doppelmail entsteht", async () => {
+    const { db, mail, d } = await setup();
+    mail.fail = new GmailUnknownOutcome("Netzwerkfehler"); await runIntraday(d);
+    expect((await one<any>(db, "SELECT state FROM outbox WHERE kind='entry'")).state).toBe("unknown");
+    mail.fail = null; d.clock.t += 2 * MIN; await flushOutbox(d); await flushOutbox(d);
+    expect(mail.sent.filter((m) => m.subject.startsWith("Einstieg")).length).toBe(0);
   });
   it("Paper-Modus protokolliert Signale, versendet aber keine Mails und behauptet keine Annahme", async () => {
     const { db, mail, d } = await setup({ MODE: "paper" });
@@ -257,7 +266,7 @@ describe("Statusansicht und Zugriffsschutz", () => {
     const html = await (await req(d, "/status", { headers: auth })).text();
     expect(html).toMatch(/Letzte erfolgreiche Läufe/); expect(html).toMatch(/Berechtigungen/); expect(html).toMatch(/geprüft/);
     const j: any = await (await req(d, "/status.json", { headers: auth })).json();
-    expect(j.universe.watch).toBe(1); expect(j.probe.sipHistorical.ok).toBe(true);
+    expect(j.markets.US.universe.watch).toBe(1); expect(j.probe.sipHistorical.ok).toBe(true);
     expect(JSON.stringify(j)).not.toMatch(/pepper|Bearer|apikey/i);
     expect((await req(d, "/healthz")).status).toBe(200);
   });

@@ -94,7 +94,7 @@ describe("Katalysator (Episodic Pivot)", () => {
 describe("Größe, Risiko, Währung", () => {
   it("Startwerte: 0,5 % Risiko, 25 % Gewicht", () => {
     const s = sizePosition(cfg, 100, 98, []);
-    expect(s.shares).toBe(25); expect(s.plannedRiskUsd).toBe(50); expect(s.limitedBy).toBe("risiko");
+    expect(s.shares).toBe(25); expect(s.plannedRisk).toBe(50); expect(s.limitedBy).toBe("risiko");
     const w = sizePosition(cfg, 100, 99.9, []);
     expect(w.limitedBy).toBe("gewicht"); expect(w.shares).toBe(25);
   });
@@ -110,7 +110,7 @@ describe("Größe, Risiko, Währung", () => {
     expect(() => loadConfig({ ACCOUNT_CURRENCY: "EUR" })).toThrow(/FX_USD_PER_EUR/);
     expect(() => loadConfig({ ACCOUNT_CURRENCY: "EUR", FX_USD_PER_EUR: "1.1" })).toThrow(/FX_DATE/);
     const c = loadConfig({ ACCOUNT_CURRENCY: "EUR", FX_USD_PER_EUR: "1.10", FX_DATE: "2026-11-20", FX_SOURCE: "EZB", CAPITAL: "10000" });
-    expect(sizePosition(c, 100, 98, []).riskBudgetUsd).toBeCloseTo(55, 5);   // 0,5 % von 11.000 USD
+    expect(sizePosition(c, 100, 98, []).riskBudget).toBeCloseTo(55, 5);   // 0,5 % von 11.000 USD
   });
   it("ungültige Konfiguration wird abgelehnt", () => {
     expect(() => loadConfig({ RISK_PERCENT: "abc" })).toThrow(); expect(() => loadConfig({ MODE: "x" })).toThrow(); expect(() => loadConfig({ DATA_FEED: "bats" })).toThrow();
@@ -165,7 +165,7 @@ describe("Universum", () => {
     const { rows, stats } = prefilter(c, m, { available: 100, excludedByReason: { ETF: 10, ADR: 5 } });
     const pass = rows.filter((r) => r.passed).map((r) => r.symbol).sort();
     expect(pass).toEqual(["BETTER", "GOOD"]);
-    expect(rows.find((r) => r.symbol === "PENNY")!.reason).toMatch(/Kurs/); expect(rows.find((r) => r.symbol === "THIN")!.reason).toMatch(/Dollarumsatz/);
+    expect(rows.find((r) => r.symbol === "PENNY")!.reason).toMatch(/Kurs/); expect(rows.find((r) => r.symbol === "THIN")!.reason).toMatch(/Umsatz/);
     expect(rows.find((r) => r.symbol === "IPO")!.reason).toMatch(/istorie/); expect(rows.find((r) => r.symbol === "WEAK")!.reason).toMatch(/Relative Stärke/);
     expect(stats).toMatchObject({ available: 100, excluded: 15, dataGaps: 2, watch: 2 });
   });

@@ -14,6 +14,7 @@ import type { Bar } from "./types";
 import type { Config } from "./config";
 import { addDays, dowOf, nyDate, pad } from "./time";
 import { sessionFor, isHoliday } from "./calendar";
+import { xetraHolidays, type Market } from "./markets";
 
 export const SECTOR_ETFS: Record<string, string> = {
   XLK: "Technologie", XLY: "Zyklischer Konsum", XLC: "Kommunikation", XLV: "Gesundheit", XLP: "Basiskonsum", XLU: "Versorger",
@@ -29,11 +30,11 @@ export interface Regime {
   asof: string; breadth: Breadth | null; leadership: Leadership | null; ftd: Ftd[]; thinWeek: string; text: string[];
 }
 
-export function breadthFrom(row: { n: number; nh: number; nl: number; a50: number; a200: number }, asof: string, source: string): Breadth | null {
+export function breadthFrom(row: { n: number; nh: number; nl: number; a50: number; a200: number }, asof: string, source: string, universe = "Nasdaq-/NYSE-Stammaktien nach den Ausschlüssen aus REGELN.md mit mindestens 252 Handelstagen Historie"): Breadth | null {
   if (!row.n) return null;
   return {
     asof, n: row.n, newHighs: row.nh, newLows: row.nl, above50Pct: (row.a50 / row.n) * 100, above200Pct: (row.a200 / row.n) * 100,
-    universe: "Nasdaq-/NYSE-Stammaktien nach den Ausschlüssen aus REGELN.md mit mindestens 252 Handelstagen Historie",
+    universe: universe,
     period: "52 Wochen (252 Handelstage); neues Hoch/Tief = Hoch/Tief des Tages über/unter dem der 251 Vortage", source,
   };
 }
@@ -81,17 +82,19 @@ export function followThroughDay(index: string, bars: Bar[], cfg: Pick<Config, "
   return { index, state: "Erholungsversuch", day, date: null, text: `${index}: Erholungsversuch, Tag ${day} seit dem Tief (noch kein Follow-Through-Day)` };
 }
 
-/** Verkürzte oder ausgefallene Handelstage der Woche (Mo–Fr) um `today`. */
-export function thinWeek(today: string): string {
+/** Verkürzte oder ausgefallene Handelstage der Woche (Mo–Fr) um `today` im jeweiligen Markt. */
+export function thinWeek(today: string, mk?: Pick<Market, "id" | "sessionFor">): string {
   const monday = addDays(today, -((dowOf(today) + 6) % 7));
   const names = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+  const sess = mk?.sessionFor ?? sessionFor;
+  const holiday = (d: string) => (mk?.id === "DE" ? xetraHolidays(+d.slice(0, 4)).get(d) ?? null : isHoliday(d));
   const out: string[] = [];
   for (let i = 0; i < 5; i++) {
     const d = addDays(monday, i), [, m, dd] = d.split("-");
     const label = `${names[dowOf(d)]} ${pad(+dd)}.${pad(+m)}.`;
-    const h = isHoliday(d);
-    if (h) out.push(`${label} geschlossen (${h})`);
-    else { const s = sessionFor(d); if (s?.early) out.push(`${label} verkürzt (Schluss 13:00 New York)`); }
+    const s = sess(d);
+    if (!s) out.push(`${label} geschlossen${holiday(d) ? ` (${holiday(d)})` : ""}`);
+    else if (s.early) out.push(`${label} verkürzt (${mk?.id === "DE" ? "Zeiten laut Börsenbekanntmachung prüfen" : "Schluss 13:00 New York"})`);
   }
   return out.length ? `Handelswoche: ${out.join("; ")} – Signale und Volumen sind weniger aussagekräftig` : "Handelswoche: keine verkürzten oder ausgefallenen Handelstage";
 }

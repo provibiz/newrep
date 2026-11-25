@@ -65,11 +65,12 @@ export class PreparedBook {
     for (const r of await all<any>(d.db, "SELECT symbol, signal_time, trigger_price FROM signals WHERE status IN ('confirmed','missed') AND signal_time > ? ORDER BY signal_time", d.now() - 7 * 86_400_000)) this.lastSig.set(r.symbol, r);
     for (const r of await all<{ id: string }>(d.db, "SELECT id FROM prepared WHERE armed_at > ?", d.now() - 4 * 86_400_000)) this.ids.add(r.id);
   }
-  add(symbol: string, hourly: Bar[], preps: Prepared[], expiresAt: (p: Prepared) => number, _daily = false) {
+  add(symbol: string, hourly: Bar[], preps: Prepared[], expiresAt: (p: Prepared) => number, market = "US", currency = "USD") {
     if (!preps.length) return;
     const sig = this.lastSig.get(symbol);
     const same = !!sig && hourly.filter((b) => b.end > sig.signal_time).every((b) => b.c >= sig.trigger_price);
-    for (const p of preps) {
+    for (const p0 of preps) {
+      const p: Prepared = { ...p0, currency };
       const id = preparedId(symbol, p);
       if (this.ids.has(id)) continue;
       const similar = this.active.some((a) => a.symbol === symbol && a.setup === p.setup && a.tf === p.timeframe && Math.abs(a.trigger / p.trigger - 1) <= 0.01);
@@ -85,8 +86,8 @@ export class PreparedBook {
       this.ids.add(id);
       same ? this.stats.suppressed++ : this.stats.added++;
       if (!same) this.active.push({ symbol, setup: p.setup, tf: p.timeframe, trigger: p.trigger });
-      this.stmts.push({ sql: "INSERT OR IGNORE INTO prepared (id,symbol,setup,timeframe,armed_at,expires_at,trigger_price,stop_price,state,state_reason,data,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-        args: [id, symbol, p.setup, p.timeframe, p.armedAt, expiresAt(p), p.trigger, p.stop, same ? "suppressed" : "active", same ? "gleicher Ausbruch läuft noch" : null, JSON.stringify(p), this.d.now()] });
+      this.stmts.push({ sql: "INSERT OR IGNORE INTO prepared (id,symbol,setup,timeframe,armed_at,expires_at,trigger_price,stop_price,state,state_reason,data,created_at,market) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        args: [id, symbol, p.setup, p.timeframe, p.armedAt, expiresAt(p), p.trigger, p.stop, same ? "suppressed" : "active", same ? "gleicher Ausbruch läuft noch" : null, JSON.stringify(p), this.d.now(), market] });
     }
   }
   async flush() { await batchRun(this.d.db, this.stmts, 40); this.stmts = []; }

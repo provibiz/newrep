@@ -104,3 +104,24 @@ export function toRawDaily(bars: Bar[]): RawBar[] {
   return bars.map((b) => { const [y, m, d] = new Date(b.end - 1).toISOString().slice(0, 10).split("-").map(Number); return { t: iso(nyToUtc(y, m, d, 0, 0)), o: b.o, h: b.h, l: b.l, c: b.c, v: b.v }; });
 }
 export const dateOf = (b: Bar) => new Date(b.end - 3_600_000 * 8).toISOString().slice(0, 10);
+
+// ───────── Hilfen für Xetra-Tests (TESTDATEN) ─────────
+import { xetraSession } from "../../src/markets";
+/** Tageskerzen auf den Xetra-Kalender legen: end = Xetra-Schluss (17:30 Berlin); Tage ohne Xetra-Sitzung entfallen. */
+export function toXetra(bars: Bar[]): Bar[] {
+  const out: Bar[] = [];
+  for (const b of bars) {
+    const date = new Date(b.end - 8 * 3_600_000).toISOString().slice(0, 10);
+    const s = xetraSession(date);
+    if (s) out.push({ ...b, end: s.close });
+  }
+  return out;
+}
+/** Gleichförmiger Verlauf (Filler) für weitere Titel */
+export function trendBars(last: string, n: number, from: number, to: number, vol = 200_000, session: "xetra" | "us" = "xetra"): Bar[] {
+  const dates = sessionsEnding(last, n);
+  const raw = fromCloses(dates, dates.map((_, i) => lerp(from, to, i, n)), vol, 1.2);
+  return session === "xetra" ? toXetra(raw) : raw;
+}
+export const SRT_ORD_ISIN = "DE0007165607";   // Platzhalter-ISIN für die Stammaktie im Test (Prüfsumme wird im Test geprüft)
+export { sessionFor };

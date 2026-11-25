@@ -11,6 +11,10 @@ import { HOUR, MIN, nyToUtc, iso } from "../time";
 import { sessionFor, hourlyBoundaries } from "../calendar";
 import type { RawBar, Snapshot, AssetRaw } from "../providers";
 import { HttpError } from "../providers";
+import { usMarket, deMarket } from "../markets";
+import { alpacaUsData } from "../usdata";
+import { missingData, type MarketData, type AssetInfo, type QuoteInfo } from "../marketdata";
+export { HttpError };
 
 export function createDb(): Db {
   const sql = new DatabaseSync(":memory:");
@@ -24,7 +28,7 @@ export function createDb(): Db {
   return { prepare: (q: string) => mk(q), batch: async (ss: Stmt[]) => { const out = []; for (const s of ss) out.push(await s.run()); return out; } };
 }
 
-export const cfgOf = (over: Record<string, unknown> = {}): Config => loadConfig({ MODE: "live", MAIL_FROM: "a@b.de", MAIL_TO: "c@d.de", BASE_URL: "https://x.example", CAPITAL: "10000", MIN_RS_PERCENTILE: "0", MIN_DOLLAR_VOLUME: "1000", MIN_PRICE: "1", MIN_HISTORY_DAYS: "70", ...over });
+export const cfgOf = (over: Record<string, unknown> = {}): Config => loadConfig({ AUTO_STANCE: "false", MODE: "live", MAIL_FROM: "a@b.de", MAIL_TO: "c@d.de", BASE_URL: "https://x.example", CAPITAL: "10000", MIN_RS_PERCENTILE: "0", MIN_DOLLAR_VOLUME: "1000", MIN_PRICE: "1", MIN_HISTORY_DAYS: "70", ...over });
 
 /** Deterministische Pseudo-Zufallszahlen */
 export function rng(seed: number) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 2 ** 32); }
@@ -96,8 +100,26 @@ export function hourEnds(lastEnd: number, n: number): number[] {
   return upto.slice(-n).concat(out);
 }
 
-export function makeDeps(db: Db, cfg: Config, now: number, o: { alpaca?: FakeAlpaca; mail?: FakeMail; fred?: string; fmp?: any } = {}): Deps & { alpaca: FakeAlpaca; mail: FakeMail; clock: { t: number } } {
+/** Xetra-Attrappe (TESTDATEN): Instrumente, Tages-/5-Minuten-Kerzen und Quotes in EUR. */
+export class FakeDeData implements MarketData {
+  id = "fake-xetr"; feedLabel = "Xetra-Attrappe (TESTDATEN, EUR)";
+  assetList: AssetInfo[] = []; daily = new Map<string, Bar[]>(); five = new Map<string, Bar[]>(); quoteMap = new Map<string, QuoteInfo>(); calls: string[] = [];
+  async assets() { this.calls.push("assets"); return this.assetList; }
+  async dailyBars(keys: string[], startDate: string, endMs: number) {
+    this.calls.push("daily:" + keys.length);
+    const out = new Map<string, Bar[]>(); const s = Date.parse(startDate + "T00:00:00Z");
+    for (const k of keys) { const b = (this.daily.get(k) ?? []).filter((x) => x.end >= s && x.end <= endMs); if (b.length) out.set(k, b); }
+    return { bars: out, requests: 1 };
+  }
+  async bars5(keys: string[], startMs: number, endMs: number) {
+    this.calls.push("bars5:" + keys.length);
+    return new Map(keys.filter((k) => this.five.has(k)).map((k) => [k, this.five.get(k)!.filter((b) => b.end - 300_000 >= startMs && b.end - 300_000 <= endMs)]));
+  }
+  async quotes(keys: string[]) { return new Map(keys.map((k) => [k, this.quoteMap.get(k) ?? { quote: null, sessionOpen: null }])); }
+}
+
+export function makeDeps(db: Db, cfg: Config, now: number, o: { alpaca?: FakeAlpaca; mail?: FakeMail; fred?: string; fmp?: any; de?: MarketData; fetch?: any } = {}): Deps & { alpaca: FakeAlpaca; mail: FakeMail; clock: { t: number } } {
   const mail = o.mail ?? new FakeMail(), alpaca = o.alpaca ?? new FakeAlpaca(), clock = { t: now };
-  return { db, cfg, now: () => clock.t, alpaca: alpaca as any, fmp: o.fmp ?? null, fred: async () => o.fred ?? "observation_date,SP500\n", sendMail: mail.send, pepper: "pepper-test-pepper", checkClock: false, log: () => {}, mail, clock } as any;
+  return { db, cfg, now: () => clock.t, alpaca: alpaca as any, fmp: o.fmp ?? null, fred: async () => o.fred ?? "observation_date,SP500\n", sendMail: mail.send, markets: { US: usMarket(alpacaUsData(alpaca as any, cfg)), DE: deMarket(o.de ?? missingData({ what: "Xetra-Kursdaten", provider: "Twelve Data", plan: "Tarif mit Xetra-Intraday", detail: "Zugang fehlt (Test)" })) }, fetch: o.fetch ?? (async () => { throw new Error("kein Netzwerk im Test"); }), pepper: "pepper-test-pepper", checkClock: false, log: () => {}, mail, clock } as any;
 }
 export { nyToUtc };
