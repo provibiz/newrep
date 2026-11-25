@@ -13,9 +13,13 @@ import { notifyPrewarn, PreparedBook } from "./prewarn";
 import { reviewPositions } from "./positions";
 import { enqueue, flushOutbox } from "../outbox";
 import { runProbe } from "./probe";
+import { updateRegime } from "./regime";
+import { findGapDays } from "../patterns";
+import type { EarningsEvent } from "../catalyst";
+import { dailyParams } from "../patterns";
 
-interface DailyState { stage: "assets" | "bars" | "rank" | "patterns" | "review" | "done"; assets?: { total: number; excluded: Record<string, number>; renamed: string[] }; barsPages: number; resynced: number }
-const CHUNK = 150, PAGE_BUDGET = 40, KEEP = 260;
+interface DailyState { stage: "assets" | "bars" | "rank" | "regime" | "patterns" | "review" | "done"; assets?: { total: number; excluded: Record<string, number>; renamed: string[] }; barsPages: number; resynced: number }
+const CHUNK = 150, PAGE_BUDGET = 40, KEEP = 270;
 
 export async function runDaily(d: Deps): Promise<string> {
   const now = d.now();
@@ -41,6 +45,10 @@ export async function runDaily(d: Deps): Promise<string> {
     if (st.stage === "rank") {
       const stats = await rank(d, last, st, now);
       await setMeta(d.db, "universe_stats", { ...stats, asof: last }, now);
+      st.stage = "regime"; await setMeta(d.db, key, st, now);
+    }
+    if (st.stage === "regime") {
+      try { await updateRegime(d, last, now); } catch (e) { await logError(d.db, "regime", e, now); }   // Marktlage ist Information: ein Fehler stoppt den Lauf nicht
       st.stage = "patterns"; await setMeta(d.db, key, st, now);
     }
     if (st.stage === "patterns") {
@@ -109,7 +117,7 @@ async function syncBars(d: Deps, last: string, now: number, st: DailyState): Pro
       pages += res.pages;
       for (const [s, raw] of res.bars) got.set(s, dailyBars(raw as RawBar[]));
     };
-    await fetchG(fresh, addDays(last, -330));
+    await fetchG(fresh, addDays(last, -400));
     if (inc.length) await fetchG(inc, addDays(nyDate(Math.min(...inc.map((s) => old.get(s)!.slice(-1)[0].end))), -8));
     const redo: string[] = [];
     const merged = new Map<string, ReturnType<typeof dailyBars>>();
@@ -117,14 +125,14 @@ async function syncBars(d: Deps, last: string, now: number, st: DailyState): Pro
       const m = mergeSeries(old.get(s)!, got.get(s) ?? [], KEEP);
       if (m.resync) redo.push(s); else merged.set(s, m.merged);
     }
-    if (redo.length) { resynced += redo.length; got.clear(); await fetchG(redo, addDays(last, -330)); for (const s of redo) merged.set(s, got.get(s) ?? []); await run(d.db, `UPDATE positions SET needs_review=1 WHERE status='open' AND symbol IN (${redo.map(() => "?").join(",")})`, ...redo); }
+    if (redo.length) { resynced += redo.length; got.clear(); await fetchG(redo, addDays(last, -400)); for (const s of redo) merged.set(s, got.get(s) ?? []); await run(d.db, `UPDATE positions SET needs_review=1 WHERE status='open' AND symbol IN (${redo.map(() => "?").join(",")})`, ...redo); }
     const stmts: { sql: string; args: unknown[] }[] = [];
     await saveSeriesMany(d.db, "1d", merged, now);
     for (const s of syms) {
       const bars = merged.get(s) ?? [];
       const m = bars.length && bars[bars.length - 1].end === close ? computeMetrics(s, bars, last) : null;
-      stmts.push({ sql: "INSERT INTO metrics (symbol,asof,price,adv_usd,range_pct,ret63,rs_pct,passed,reason,updated_at) VALUES (?,?,?,?,?,?,0,0,?,?) ON CONFLICT(symbol) DO UPDATE SET asof=excluded.asof,price=excluded.price,adv_usd=excluded.adv_usd,range_pct=excluded.range_pct,ret63=excluded.ret63,rs_pct=0,passed=0,reason=excluded.reason,updated_at=excluded.updated_at",
-        args: [s, last, m?.price ?? null, m?.advUsd ?? null, m?.rangePct ?? null, m?.ret63 ?? null, m ? (bars.length < 64 ? `nur ${bars.length} Handelstage Historie` : null) : bars.length ? "Tageskerze des letzten Handelstags fehlt" : "keine Daten", now] });
+      stmts.push({ sql: "INSERT INTO metrics (symbol,asof,price,adv_usd,range_pct,ret63,rs_pct,passed,reason,updated_at,nh,nl,a50,a200,n252) VALUES (?,?,?,?,?,?,0,0,?,?,?,?,?,?,?) ON CONFLICT(symbol) DO UPDATE SET asof=excluded.asof,price=excluded.price,adv_usd=excluded.adv_usd,range_pct=excluded.range_pct,ret63=excluded.ret63,rs_pct=0,passed=0,reason=excluded.reason,updated_at=excluded.updated_at,nh=excluded.nh,nl=excluded.nl,a50=excluded.a50,a200=excluded.a200,n252=excluded.n252",
+        args: [s, last, m?.price ?? null, m?.advUsd ?? null, m?.rangePct ?? null, m?.ret63 ?? null, m ? (bars.length < 64 ? `nur ${bars.length} Handelstage Historie` : null) : bars.length ? "Tageskerze des letzten Handelstags fehlt" : "keine Daten", now, m?.nh ?? null, m?.nl ?? null, m?.a50 ?? null, m?.a200 ?? null, bars.length] });
     }
     await batchRun(d.db, stmts);
   }
@@ -144,7 +152,7 @@ async function rank(d: Deps, last: string, st: DailyState, now: number) {
 
 async function dailyPatterns(d: Deps, last: string, now: number): Promise<number> {
   const watch = (await all<{ symbol: string }>(d.db, "SELECT symbol FROM metrics WHERE passed=1")).map((x) => x.symbol);
-  let n = 0;
+  let n = 0, fmpCalls = 0;
   const book = new PreparedBook(d); await book.load();
   const series = await loadSeriesMany(d.db, watch, "1d");
   const actAll = new Map<string, any[]>();
@@ -158,7 +166,12 @@ async function dailyPatterns(d: Deps, last: string, now: number): Promise<number
       if (bad) await run(d.db, "UPDATE prepared SET state='invalidated', state_reason=? WHERE id=?", `Tageskerze bis ${iso(bad.end)} unterschritt ${p.invalidateBelow.toFixed(2)}`, a.id);
     }
     if (bars[bars.length - 1].end !== sessionFor(last)!.close) continue;
-    book.add(sym, bars, prepare(bars, "1d"), (p) => addSessions(last, p.ttlBars));
+    const params = dailyParams(d.cfg);
+    let events: EarningsEvent[] | undefined;
+    if (d.fmp && fmpCalls < d.cfg.ercMaxFmpCalls && findGapDays(bars, params).length) {        // Quartalszahlen nur für Titel mit Kurslücke abrufen (FMP-Kontingent)
+      try { events = await earningsFor(d, sym, now); fmpCalls++; } catch (e) { await logError(d.db, "fmp", e, now); }
+    }
+    book.add(sym, bars, prepare(bars, "1d", params, { events }), (p) => addSessions(last, p.ttlBars), true);
   }
   await book.flush();
   n = book.stats.added;
@@ -179,3 +192,12 @@ async function dailyReport(d: Deps, last: string, posLines: string[], now: numbe
   await enqueue(d, { id: `daily:${last}`, kind: "daily", subject: `Tagesbericht ${last}${cnt.some((c) => c.status === "confirmed") ? " · Einstiege" : " · keine Einstiege"}`, text: L.join("\n"), sendBy: now + 12 * 3_600_000 });
 }
 export { upsert, DAY };
+
+/** Quartalszahlen je Symbol, 7 Tage zwischengespeichert (nur abgeleitete Ereignisse, keine Rohdaten). */
+async function earningsFor(d: Deps, symbol: string, now: number): Promise<EarningsEvent[]> {
+  const c = await getMeta<{ at: number; ev: EarningsEvent[] }>(d.db, `earn:${symbol}`);
+  if (c && now - c.at < 7 * DAY) return c.ev;
+  const ev = await (d.fmp as any).earningsFor(symbol, now) as EarningsEvent[];
+  await setMeta(d.db, `earn:${symbol}`, { at: now, ev }, now);
+  return ev;
+}

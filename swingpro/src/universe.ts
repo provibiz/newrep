@@ -31,7 +31,7 @@ export function classifyAsset(a: AssetRaw, cfg: Config): AssetVerdict {
   return { included: true, reason: null };
 }
 
-export interface Metrics { symbol: string; asof: string; price: number; advUsd: number; rangePct: number; ret63: number; days: number }
+export interface Metrics { symbol: string; asof: string; price: number; advUsd: number; rangePct: number; ret63: number; days: number; nh?: number; nl?: number; a50?: number; a200?: number }
 
 export function computeMetrics(symbol: string, daily: Bar[], asof: string): Metrics | null {
   if (daily.length < 64) return null;
@@ -40,7 +40,13 @@ export function computeMetrics(symbol: string, daily: Bar[], asof: string): Metr
   const advUsd = last20.reduce((s, b) => s + b.c * b.v, 0) / 20;
   const rangePct = (last20.reduce((s, b) => s + (b.h - b.l) / b.c, 0) / 20) * 100;
   const ret63 = price / daily[daily.length - 64].c - 1;
-  return { symbol, asof, price, advUsd, rangePct, ret63, days: daily.length };
+  const last = daily[daily.length - 1], n = daily.length;
+  const prior = daily.slice(-252, -1);
+  const full = n >= 252;
+  const sma = (k: number) => (n >= k ? daily.slice(-k).reduce((x, b) => x + b.c, 0) / k : NaN);
+  return { symbol, asof, price, advUsd, rangePct, ret63, days: n,
+    nh: full && last.h > Math.max(...prior.map((b) => b.h)) ? 1 : 0, nl: full && last.l < Math.min(...prior.map((b) => b.l)) ? 1 : 0,
+    a50: price > sma(50) ? 1 : 0, a200: price > sma(200) ? 1 : 0 };
 }
 
 export interface PrefilterRow extends Metrics { rsPct: number; passed: boolean; reason: string | null }

@@ -65,14 +65,23 @@ export class PreparedBook {
     for (const r of await all<any>(d.db, "SELECT symbol, signal_time, trigger_price FROM signals WHERE status IN ('confirmed','missed') AND signal_time > ? ORDER BY signal_time", d.now() - 7 * 86_400_000)) this.lastSig.set(r.symbol, r);
     for (const r of await all<{ id: string }>(d.db, "SELECT id FROM prepared WHERE armed_at > ?", d.now() - 4 * 86_400_000)) this.ids.add(r.id);
   }
-  add(symbol: string, hourly: Bar[], preps: Prepared[], expiresAt: (p: Prepared) => number) {
+  add(symbol: string, hourly: Bar[], preps: Prepared[], expiresAt: (p: Prepared) => number, _daily = false) {
     if (!preps.length) return;
     const sig = this.lastSig.get(symbol);
     const same = !!sig && hourly.filter((b) => b.end > sig.signal_time).every((b) => b.c >= sig.trigger_price);
     for (const p of preps) {
       const id = preparedId(symbol, p);
       if (this.ids.has(id)) continue;
-      if (!same && this.active.some((a) => a.symbol === symbol && a.setup === p.setup && a.tf === p.timeframe && Math.abs(a.trigger / p.trigger - 1) <= 0.01)) continue;
+      const similar = this.active.some((a) => a.symbol === symbol && a.setup === p.setup && a.tf === p.timeframe && Math.abs(a.trigger / p.trigger - 1) <= 0.01);
+      if (!same && p.refresh) {
+        // wandernde Level (z. B. EMA): bestehende aktive Vorbereitung aktualisieren statt neue anlegen
+        const hasActive = this.active.some((a) => a.symbol === symbol && a.setup === p.setup && a.tf === p.timeframe);
+        if (hasActive) {
+          this.stmts.push({ sql: "UPDATE prepared SET trigger_price=?, stop_price=?, data=?, armed_at=?, expires_at=? WHERE symbol=? AND setup=? AND timeframe=? AND state='active'", args: [p.trigger, p.stop, JSON.stringify(p), p.armedAt, expiresAt(p), symbol, p.setup, p.timeframe] });
+          continue;
+        }
+      }
+      if (!same && similar) continue;
       this.ids.add(id);
       same ? this.stats.suppressed++ : this.stats.added++;
       if (!same) this.active.push({ symbol, setup: p.setup, tf: p.timeframe, trigger: p.trigger });

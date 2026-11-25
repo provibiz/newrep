@@ -68,6 +68,22 @@ export interface Config {
   stagnationMinR: number;
   trailBufferCents: number;
   barLagSec: number;
+  // Marktvorgabe des Nutzers (Entscheidung für die aktuelle Lage, keine allgemeine Regel)
+  stance: "open" | "selective" | "cash";
+  stanceNote: string;
+  stanceSelectiveSetups: string[];
+  stanceWeightMin: number | null;
+  stanceWeightMax: number | null;
+  mailWatch: boolean;
+  // Konsolidierung nach Quartalszahlen (Modellannahmen)
+  ercMinGapPct: number; ercMinDays: number; ercLookbackDays: number; ercMaxRangePct: number; ercStopBasis: "inside_day" | "breakout_day"; ercMaxFmpCalls: number;
+  // Mehrwöchige Basis (Modellannahmen)
+  mwbMinDays: number; mwbMaxRangePct: number; mwbPriorRisePct: number; mwbMaxDistPct: number;
+  // EMA-Reclaim (Modellannahmen)
+  reclaimMinSidewaysDays: number; reclaimMaxSidewaysDays: number; reclaimMaxRangePct: number; reclaimConfirm: "intraday" | "daily_close";
+  reclaimLevelTest: boolean; reclaimLevelTolPct: number; reclaimLevelAdvancePct: number;
+  // Marktlage (nur Information)
+  growthGroups: string[]; ftdMinGainPct: number; ftdMinDay: number;
 }
 
 const bool = (v: unknown, d: boolean) => (v === undefined || v === "" ? d : String(v).toLowerCase() === "true");
@@ -132,7 +148,28 @@ export function loadConfig(env: Record<string, unknown>): Config {
     stagnationMinR: num(env.STAGNATION_MIN_R, 1, "STAGNATION_MIN_R"),
     trailBufferCents: num(env.TRAIL_BUFFER_CENTS, 1, "TRAIL_BUFFER_CENTS"),
     barLagSec: num(env.BAR_LAG_SEC, 60, "BAR_LAG_SEC"),
+    stance: str(env.MARKET_STANCE, "open") as Config["stance"], stanceNote: str(env.STANCE_NOTE),
+    stanceSelectiveSetups: str(env.STANCE_SELECTIVE_SETUPS, "first_higher_low").split(",").map((x) => x.trim()).filter(Boolean),
+    stanceWeightMin: env.STANCE_WEIGHT_MIN === undefined || env.STANCE_WEIGHT_MIN === "" ? null : num(env.STANCE_WEIGHT_MIN, 0, "STANCE_WEIGHT_MIN"),
+    stanceWeightMax: env.STANCE_WEIGHT_MAX === undefined || env.STANCE_WEIGHT_MAX === "" ? null : num(env.STANCE_WEIGHT_MAX, 0, "STANCE_WEIGHT_MAX"),
+    mailWatch: bool(env.MAIL_WATCH, true),
+    ercMinGapPct: num(env.ERC_MIN_GAP_PCT, 8, "ERC_MIN_GAP_PCT"), ercMinDays: num(env.ERC_MIN_DAYS, 5, "ERC_MIN_DAYS"),
+    ercLookbackDays: num(env.ERC_LOOKBACK_DAYS, 30, "ERC_LOOKBACK_DAYS"), ercMaxRangePct: num(env.ERC_MAX_RANGE_PCT, 8, "ERC_MAX_RANGE_PCT"),
+    ercStopBasis: str(env.ERC_STOP_BASIS, "inside_day") as Config["ercStopBasis"], ercMaxFmpCalls: num(env.ERC_MAX_FMP_CALLS, 30, "ERC_MAX_FMP_CALLS"),
+    mwbMinDays: num(env.MWB_MIN_DAYS, 15, "MWB_MIN_DAYS"), mwbMaxRangePct: num(env.MWB_MAX_RANGE_PCT, 10, "MWB_MAX_RANGE_PCT"),
+    mwbPriorRisePct: num(env.MWB_PRIOR_RISE_PCT, 10, "MWB_PRIOR_RISE_PCT"), mwbMaxDistPct: num(env.MWB_MAX_DIST_PCT, 4, "MWB_MAX_DIST_PCT"),
+    reclaimMinSidewaysDays: num(env.EMA_RECLAIM_MIN_SIDEWAYS_DAYS, 3, "EMA_RECLAIM_MIN_SIDEWAYS_DAYS"),
+    reclaimMaxSidewaysDays: num(env.EMA_RECLAIM_MAX_SIDEWAYS_DAYS, 15, "EMA_RECLAIM_MAX_SIDEWAYS_DAYS"),
+    reclaimMaxRangePct: num(env.EMA_RECLAIM_MAX_RANGE_PCT, 6, "EMA_RECLAIM_MAX_RANGE_PCT"),
+    reclaimConfirm: str(env.EMA_RECLAIM_CONFIRM, "intraday") as Config["reclaimConfirm"],
+    reclaimLevelTest: bool(env.EMA_RECLAIM_LEVEL_TEST, true), reclaimLevelTolPct: num(env.EMA_RECLAIM_LEVEL_TOL_PCT, 3, "EMA_RECLAIM_LEVEL_TOL_PCT"),
+    reclaimLevelAdvancePct: num(env.EMA_RECLAIM_LEVEL_ADVANCE_PCT, 20, "EMA_RECLAIM_LEVEL_ADVANCE_PCT"),
+    growthGroups: str(env.GROWTH_GROUPS, "XLK,XLY,XLC").split(",").map((x) => x.trim().toUpperCase()).filter(Boolean),
+    ftdMinGainPct: num(env.FTD_MIN_GAIN_PCT, 1.25, "FTD_MIN_GAIN_PCT"), ftdMinDay: num(env.FTD_MIN_DAY, 4, "FTD_MIN_DAY"),
   };
+  if (!["open", "selective", "cash"].includes(c.stance)) throw new Error("MARKET_STANCE muss open, selective oder cash sein");
+  if (!["inside_day", "breakout_day"].includes(c.ercStopBasis)) throw new Error("ERC_STOP_BASIS muss inside_day oder breakout_day sein");
+  if (!["intraday", "daily_close"].includes(c.reclaimConfirm)) throw new Error("EMA_RECLAIM_CONFIRM muss intraday oder daily_close sein");
   if (!["info", "block_trend_setups", "block_all"].includes(c.qqqFilter)) throw new Error("QQQ_FILTER ungültig");
   for (const [k, v] of Object.entries({ capital: c.capital, risk: c.riskPercent, weight: c.maxWeightPercent, openRisk: c.maxOpenRiskPercent })) {
     if (!(v > 0)) throw new Error(`Konfiguration ${k} muss > 0 sein`);

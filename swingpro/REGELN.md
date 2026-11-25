@@ -28,6 +28,29 @@ Zweistufig: **Vorbereitung** (nur abgeschlossene Kerzen) und **Auslöser** (abge
 
 **Derselbe Ausbruch:** Jedes vorbereitete Setup löst höchstens einmal aus (`prepared.id`). Wird dieselbe Struktur in der nächsten Stunde erneut erkannt (Auslöser ±1 %), entsteht keine zweite Vorwarnung. Ein späteres Setup derselben Aktie gilt als *neuer eigenständiger Ausbruch*, sobald seit dem letzten Signal ein Stundenschluss unter dem früheren Auslöser lag.
 
+### Ergänzung vom 25.11.2026 (Report „HUANG-OVER – Der Kater nach der Party“): drei weitere Einstiegspfade
+Quelle der Fälle: TraderMacher-Report von Dirk Siebenhaar vom 25.11.2026. Die Mail beschreibt die Fälle in Worten und Charts, nennt aber weder Parameter noch Definitionen. **Alle Zahlen unten sind Modellannahmen** (konfigurierbar). Die Kursmarken der Fälle stehen ausschließlich in `test/fixtures/siebenhaar.ts`.
+
+| Setup | Vorbereitung (Tageschart) | Auslöser | Stopp / Bezug | Datenbedarf | Bekannte Grenzen |
+|---|---|---|---|---|---|
+| **Konsolidierung nach Quartalszahlen** (Crocs) | Kurslücke ≥ 8 % (`ERC_MIN_GAP_PCT`) mit belegtem Katalysator „Quartalszahlen“ (wie Episodic Pivot), danach **mindestens 5 Handelstage** Konsolidierung (`ERC_MIN_DAYS`), Lücke nicht gefüllt, Spanne der letzten 5 Tage ≤ 8 % (`ERC_MAX_RANGE_PCT`), EMA10 > EMA20 und EMA20 steigt, Kurs ≥ EMA20, **letzte Kerze ist ein Inside Day**. Rückblick 30 Tage (`ERC_LOOKBACK_DAYS`). | 5-Min-Schluss über dem **Hoch des Inside Days**. **Weder die Zahlenmeldung noch die erste Kurslücke noch die Tage direkt danach lösen aus** (Test: `test/siebenhaar-2026-11-25.test.ts`). | **Modellannahme:** Die Quelle schreibt nur „unter dem Tagestief“. Wir beziehen den Stopp auf das **Tief des Inside Days** (Datum steht in Vorwarnung und Mail). Alternative `ERC_STOP_BASIS=breakout_day`: Tief des Ausbruchstags. | Tageskerzen, FMP `earnings` je Titel mit Lücke (max. 30 Abrufe je Tageslauf, `ERC_MAX_FMP_CALLS`) | Ohne Katalysator-Daten (FMP) keine Vorbereitung. Gap-Tag-Meldung ohne belegte Uhrzeit zählt nicht. |
+| **Mehrwöchige Basis** (Sartorius) | Mindestens 15 Handelstage (`MWB_MIN_DAYS`) seitwärts mit Spanne ≤ 10 % (`MWB_MAX_RANGE_PCT`) nach Anstieg ≥ 10 % (`MWB_PRIOR_RISE_PCT`), EMA20 steigt unter dem Kurs, Schluss ≤ 4 % unter dem Basishoch (`MWB_MAX_DIST_PCT`), letzte Kerze ist ein Inside Day. Ersetzt im Tageschart den generischen Basisausbruch derselben Strecke. | 5-Min-Schluss über dem **Hoch des Inside Days**. Das **Basishoch/die runde Marke bleibt Kontext** (in Vorwarnung als „Kontext, KEIN Trigger“ gezeigt). | Tief des Inside Days (Modellannahme wie oben). | Tageskerzen **in der Währung des Instruments** | **Nur mit Datenabdeckung**: siehe 4a. Ohne sie „Markt nicht unterstützt“, kein Ersatzkurs. |
+| **EMA-Reclaim** (Illumina) – getrennt vom EMA-Crossback | Kurs **unter EMA10 und EMA20** (EMA20 fällt) nach einem Abverkauf; **Rücklauf aufs alte Ausbruchsniveau** (lokales Hoch, das später um ≥ 20 % überboten wurde, Test mit 3 % Toleranz; schaltbar `EMA_RECLAIM_LEVEL_TEST`) – **das ist nur die Vorbereitung**; danach **Seitwärtsphase** (≥ 3 Tage, Spanne ≤ 6 %). | Rückeroberung von **EMA10 und EMA20** (Trigger = höherer der beiden). **Bestätigungsart konfigurierbar** (`EMA_RECLAIM_CONFIRM`): `intraday` = 5-Min-Schluss darüber (Standard), `daily_close` = vollständiger Tagesschluss nach Börsenschluss. | **Unter dem Tief der Konsolidierung** (Seitwärtsphase), nicht unter dem Rücklauf-Niveau. | Tageskerzen | **Weder eine feste Zahl Seitwärtstage noch eine Schlusskursbestätigung steht in der Quelle** – beide sind sichtbare, konfigurierbare Modellannahmen (`EMA_RECLAIM_MIN_SIDEWAYS_DAYS`, `EMA_RECLAIM_CONFIRM`). Trigger wandert mit den EMAs (Vorbereitung wird täglich aktualisiert). |
+
+**EMA-Crossback vs. EMA-Reclaim:** Crossback = Rücksetzer **in einem Aufwärtstrend** (EMA20 steigt, Kurs darüber, Berührung des EMA). Reclaim = Rückeroberung **nach einem Abverkauf** (Kurs unter beiden EMAs, EMA20 fällt). Beide schließen sich per Definition aus (Test).
+
+### Drei getrennte Entscheidungen (Datenmodell, Oberfläche, E-Mail)
+| Stufe | Frage | Gespeichert in | Mail / Oberfläche |
+|---|---|---|---|
+| 1. **Setup vorbereitet** | Passt die Struktur, ist der Trigger definiert? | `prepared` (Zeit `created_at`, `origin`, `source`) | Vorwarnung („Stufe 1 von 3 … noch KEIN Trigger, KEIN Einstieg“) |
+| 2. **Technischer Trigger erreicht** | Hat eine abgeschlossene Kerze den Auslöser bestätigt? | `signals.signal_time` | Zeile „Technischer Trigger erreicht“ |
+| 3. **Einstieg zulässig** (konfigurierte Markt- und Risikoregeln) | Marktvorgabe, QQQ-Filter, frischer Kurs, Verpasst-Grenze, Größe/Risiko | `signals.permission` (`permitted`/`watch_only`), `permission_reasons` | „Einstieg bestätigt“ **oder** „Nur beobachten · … · Grund“ |
+
+Jedes vom Bot erzeugte Signal trägt die Kennzeichnung **„Modellentscheidung des Bots – keine Anlageberatung und keine ausgeführte Order“**. Eine **veröffentlichte Watchlist-Idee** (`origin=idea`, Quelle genannt) ist **kein ausgeführter Trade**: sie wird als externe Vorbereitung importiert und durchläuft dieselben drei Stufen; eine Position entsteht erst durch deine ausdrückliche Kaufbestätigung. Ist Stufe 3 „nein“, enthält die Mail **keinen Kauf-Link, keine Stückzahl, keine Positionsanlage**.
+
+### 4a. Datenabdeckung für Nicht-US-Instrumente (Sartorius)
+Ein Instrument gilt nur als unterstützt, wenn **alle fünf** Prüfungen bestehen: Datenanbieter (Alpaca: nur Nasdaq/NYSE), Wertpapierkennung (ISIN-Prüfsumme und Anbieter-Zuordnung), Handelsplatz, **Handelskalender** (nur NYSE implementiert) und **Währung** (Stückzahl/Risiko nur in USD). Sonst: **„Markt nicht unterstützt“** mit den Einzelgründen (Statusseite, Import-Ergebnis). Es wird **nie ein US-Kurs als Ersatz für einen EUR-Trigger** verwendet: `checkEntry` lehnt Kurse in abweichender Währung ab (`currency_mismatch`).
+
 ## 2. Marktkontext
 
 | Regel | Quelle / Art | Zeiteinheit | Datenbedarf | Grenzen |
@@ -76,3 +99,15 @@ Zweistufig: **Vorbereitung** (nur abgeschlossene Kerzen) und **Auslöser** (abge
 | Seitwärts | ≥ 15 Handelstage ohne ≥ 1R → einmaliger Zeithinweis. |
 | Länger halten | Das System hält nichts automatisch: Nach dem Teilverkauf läuft der Wochentief-Stopp; ob du 6–12 Monate hältst, entscheidest du. Der Wachstumsbefund der Mail ist nur ein Hinweis. |
 | Orders | Das System löst **nie** Orders aus. |
+
+## 7. Marktzustand getrennt vom einzelnen Chart (Information, keine Freigabe-Schwelle)
+Quelle des Falls: Report vom 25.11.2026 (Erholungsversuch im Abwärtstrend, 123 neue Hochs gegenüber 465 neuen Tiefs, fehlende Führung durch Wachstumsaktien, Follow-Through-Day allein genügt nicht). **Die Mail nennt keinen allgemeingültigen numerischen Schwellenwert für eine Marktfreigabe – dieses System erfindet keinen.** Es dokumentiert den Zustand und lässt dich die Marktvorgabe setzen.
+
+| Komponente | Umsetzung (M) | Universum · Zeitraum · Quelle | Grenzen |
+|---|---|---|---|
+| Marktbreite | Anzahl neuer 52-Wochen-Hochs/-Tiefs, Anteil über SMA50/SMA200 | Nasdaq-/NYSE-Stammaktien nach den Ausschlüssen aus Abschnitt 4 mit ≥ 252 Handelstagen Historie · 252 Handelstage · Alpaca-Tageskerzen (`DAILY_FEED`) | **Nicht identisch mit der Börsenstatistik der Quelle** – Zahlen anderer Anbieter sind nicht reproduzierbar. Neuemissionen und Symbole mit Lücken fehlen. |
+| Führungsgruppen | Relative Stärke (63 Handelstage) der SPDR-Sektor-ETFs vs. SPY; Wachstumsgruppen XLK/XLY/XLC (`GROWTH_GROUPS`) „führen“, wenn ≥ 2 der Top 3 dazugehören | Sektor-ETFs · 63 Tage · Alpaca-Tageskerzen | Sektor-ETF-Zuordnung ist eine Modellwahl; Branchen-Untergruppen (z. B. Biotech, Medizintechnik) fehlen. |
+| Erholungsversuch / Follow-Through-Day | Tag 1 = erster Plus-Schluss nach dem tiefsten Schluss der letzten 40 Tage; FTD = ab Tag 4 (`FTD_MIN_DAY`) ≥ 1,25 % (`FTD_MIN_GAIN_PCT`) bei höherem Volumen | SPY, QQQ · Tageskerzen | Modellregel, **nur Information**; ein FTD allein gibt nichts frei. |
+| Verkürzte Handelstage | Feiertage und 13:00-Schlüsse der Handelswoche (NYSE-Kalender) | NYSE-Kalender | |
+
+**Marktvorgabe (P, Entscheidung für die konkrete Lage, kein Algorithmus):** `open` (normale Regeln), `selective` (nur `STANCE_SELECTIVE_SETUPS`, z. B. First Higher Low, mit optionalem geplanten Einsatz `STANCE_WEIGHT_MIN/MAX` als Gewichtsgrenze) oder `cash` (kein Einstieg, nur „Nur beobachten“). Setzbar per Variable `MARKET_STANCE` oder auf der Statusseite (mit Notiz und Zeitstempel). Die in der Quelle genannten Werte (100 % Cash, 20–25 % Einsatz beim höheren Tief) sind **Entscheidungen des Autors für diese Lage**, keine Standardwerte dieses Systems.

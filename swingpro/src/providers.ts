@@ -112,6 +112,12 @@ export class Fmp {
     if (!Array.isArray(rows)) throw new Error("FMP income-statement: unerwartetes Format");
     return rows;
   }
+  /** Quartalsmeldungen eines Symbols (Datum, EPS-Ist). Die Uhrzeit liefert der Anbieter laut unserer Kenntnis nicht: availableAt bleibt leer. */
+  async earningsFor(symbol: string, _fetchedAt: number): Promise<EarningsEvent[]> {
+    const rows = await getJson(this.f, this.url("earnings", { symbol, limit: "12" }));
+    if (!Array.isArray(rows)) throw new Error("FMP earnings: unerwartetes Format");
+    return rows.filter((r: any) => r.date).map((r: any) => ({ symbol, date: String(r.date), epsActual: typeof r.epsActual === "number" ? r.epsActual : null, timing: null, availableAt: null }));
+  }
   /** Earnings-Kalender für ein Datumsfenster (ein Aufruf für alle Titel). */
   async earningsCalendar(from: string, to: string, fetchedAt: number): Promise<Map<string, EarningsEvent>> {
     const rows = await getJson(this.f, this.url("earnings-calendar", { from, to }));

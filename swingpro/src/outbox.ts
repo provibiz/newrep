@@ -4,7 +4,7 @@ import { linkify } from "./mail";
 import { HttpError } from "./providers";
 import type { Deps } from "./deps";
 
-export type OutboxKind = "prewarn" | "entry" | "missed" | "position" | "daily" | "test" | "alert";
+export type OutboxKind = "prewarn" | "entry" | "watch" | "missed" | "position" | "daily" | "test" | "alert";
 
 export async function enqueue(d: Deps, m: { id: string; kind: OutboxKind; subject: string; text: string; sendBy?: number | null; signalId?: string | null }): Promise<boolean> {
   return insertIgnore(d.db, "outbox", {

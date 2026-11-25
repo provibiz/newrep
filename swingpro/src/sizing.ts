@@ -21,7 +21,7 @@ export function openRiskUsd(open: OpenPosition[]): number {
   return open.reduce((s, p) => s + Math.max(0, p.entry - p.stop) * p.sharesRemaining, 0);
 }
 
-export function sizePosition(cfg: Config, entry: number, stop: number, open: OpenPosition[]): SizeResult {
+export function sizePosition(cfg: Config, entry: number, stop: number, open: OpenPosition[], opts?: { maxWeightPercent?: number }): SizeResult {
   const capitalUsd = toUsd(cfg, cfg.capital);
   const risk = entry - stop;
   const riskBudgetUsd = capitalUsd * cfg.riskPercent / 100;
@@ -33,7 +33,7 @@ export function sizePosition(cfg: Config, entry: number, stop: number, open: Ope
   if (open.length >= cfg.maxPositions) return { ...base, limitedBy: "positionen", note: `Bereits ${open.length} offene Positionen (Grenze ${cfg.maxPositions})` };
   const caps: [SizeResult["limitedBy"], number][] = [
     ["risiko", Math.floor(riskBudgetUsd / risk)],
-    ["gewicht", Math.floor((capitalUsd * cfg.maxWeightPercent / 100) / entry)],
+    ["gewicht", Math.floor((capitalUsd * Math.min(cfg.maxWeightPercent, opts?.maxWeightPercent ?? cfg.maxWeightPercent) / 100) / entry)],
     ["kapital", Math.floor(availableUsd / entry)],
     ["gesamtrisiko", Math.floor(Math.max(0, capitalUsd * cfg.maxOpenRiskPercent / 100 - oRisk) / risk)],
   ];

@@ -223,11 +223,13 @@ describe("Verpasster Einstieg, alte Kurse, Ausfälle, Paper-Modus", () => {
     await runIntraday(d); expect(mail.sent.some((m) => m.subject.startsWith("Einstieg bestätigt"))).toBe(true);
   });
   it("QQQ-Filter: im alten Modus block_all verhindert den Einstieg und die Regel wird genannt", async () => {
-    const { db, d, sc } = await setup({ QQQ_FILTER: "block_all" }, (sc) => { sc.alpaca.raw30.set("QQQ", sc.alpaca.raw30.get("QQQ")!.map((r, i, a) => ({ ...r, c: 440 - i * 0.05, o: 440 - i * 0.05, h: 441 - i * 0.05, l: 439 - i * 0.05 }))); });
+    const { db, d, sc, mail } = await setup({ QQQ_FILTER: "block_all" }, (sc) => { sc.alpaca.raw30.set("QQQ", sc.alpaca.raw30.get("QQQ")!.map((r, i, a) => ({ ...r, c: 440 - i * 0.05, o: 440 - i * 0.05, h: 441 - i * 0.05, l: 439 - i * 0.05 }))); });
     await runIntraday(d);
-    expect((await all(db, "SELECT 1 FROM signals WHERE status!='blocked'")).length).toBe(0);
-    const blk = await one<any>(db, "SELECT status_reason FROM signals WHERE status='blocked' AND setups LIKE '%base_breakout%'");
+    expect((await all(db, "SELECT 1 FROM signals WHERE status!='watch_only'")).length).toBe(0);     // kein Einstieg
+    const blk = await one<any>(db, "SELECT status_reason, permission FROM signals WHERE status='watch_only' AND setups LIKE '%base_breakout%'");
+    expect(blk.permission).toBe("watch_only");
     expect(blk.status_reason).toMatch(/QQQ-Filter \(sperrt alle Setups\)/);   // die blockierende Regel ist protokolliert
+    expect(mail.sent.some((m) => m.subject === "Nur beobachten · DEMO · Base Breakout")).toBe(true);
     void sc;
   });
   it("Hourly ohne QQQ-Referenz: Lauf scheitert sichtbar, Status zeigt Fehler statt „keine Signale“", async () => {

@@ -7,6 +7,7 @@ import { money } from "./sizing";
 import type { SpContext, QqqDecision } from "./market";
 import type { GrowthResult } from "./growth";
 import type { EntryCheck } from "./entry";
+import { STANCE_LABEL } from "./permission";
 
 export interface Mail { subject: string; text: string }
 const px = (x: number) => x.toFixed(2);
@@ -21,6 +22,22 @@ function tzNote(ms: number): string {
 }
 const modeLine = (cfg: Config) => (cfg.mode === "paper" ? "PAPER-MODUS: nur Protokoll, keine Handelsempfehlung\n" : "");
 
+/** Kennzeichnung: jedes vom Bot erzeugte Signal ist eine Modellentscheidung; eine veröffentlichte Idee ist kein ausgeführter Trade. */
+export function modelNote(origin: "model" | "idea" | undefined, source?: string): string {
+  const base = "Modellentscheidung des Bots (Regeln: REGELN.md) – keine Anlageberatung und keine ausgeführte Order. Orders löst du selbst aus.";
+  return origin === "idea"
+    ? `${base}\nHerkunft: veröffentlichte Watchlist-Idee (${source ?? "extern"}), nicht vom Bot erzeugt. Eine veröffentlichte Watchlist-Idee ist kein ausgeführter Trade.`
+    : base;
+}
+const cur = (p?: { currency?: string }) => p?.currency ?? "USD";
+
+export function stagesBlock(a: { preparedAt: number; triggerAt: number; permitted: boolean; reasons: string[] }): string[] {
+  return ["Entscheidungsstufen (getrennt):",
+    `  1. Setup vorbereitet: ${formatBerlin(a.preparedAt)} – ja`,
+    `  2. Technischer Trigger erreicht: ${formatBerlin(a.triggerAt)} – ja`,
+    `  3. Einstieg nach Markt- und Risikoregeln zulässig: ${a.permitted ? "JA" : "NEIN"}${a.reasons.length ? " – " + a.reasons.join(" | ") : ""}`];
+}
+
 export interface PrewarnItem { symbol: string; prepared: Prepared[]; rsPct?: number; expiresAt: number }
 
 export function prewarnMail(cfg: Config, items: PrewarnItem[], now: number): Mail {
@@ -28,19 +45,22 @@ export function prewarnMail(cfg: Config, items: PrewarnItem[], now: number): Mai
   const subj = items.length === 1
     ? `Vorwarnung · ${first.symbol} · ${names(first.prepared.map((p) => p.setup))}`
     : `Vorwarnung · ${items.length} Setups · ${items.slice(0, 3).map((i) => i.symbol).join(", ")}${items.length > 3 ? " …" : ""}`;
-  const lines = [modeLine(cfg) + `Vorbereitete Setups (noch KEIN Einstieg) · Stand ${formatBerlin(now)}${tzNote(now)}`, `${feedText(cfg)}`, ""];
+  const lines = [modeLine(cfg) + `Stufe 1 von 3 – Setup vorbereitet (noch KEIN Trigger, KEIN Einstieg) · Stand ${formatBerlin(now)}${tzNote(now)}`, `${feedText(cfg)}`, ""];
   for (const it of items) {
     for (const p of it.prepared) {
       lines.push(`${it.symbol} · ${SETUP_LABEL[p.setup]} (${p.timeframe === "1h" ? "Stundenchart" : "Tageschart"})`,
         p.needsHourClose ? `  Auslöser: Schluss der ersten Handelsstunde (10:30 New York) nicht unter der Eröffnung – ausdrücklich Stundenschluss, kein früheres Signal`
           : `  Auslösemarke: 5-Minuten-Schluss über ${px(p.trigger)}`,
-        `  Geplanter Stopp: ${px(p.stop)} (Idee widerlegt bei Schluss/Tief unter ${px(p.invalidateBelow)})`,
+        `  Geplanter Stopp: ${px(p.stop)} ${cur(p)} (Idee widerlegt bei Schluss/Tief unter ${px(p.invalidateBelow)})`,
+        ...(p.stopBasis ? [`  Stopp-Bezug: ${p.stopBasis}`] : []),
+        ...(p.contextLevels?.length ? [`  Kontext: ${p.contextLevels.map((c) => `${px(c.level)} ${cur(p)} (${c.label})`).join("; ")}`] : []),
+        ...(p.origin === "idea" ? [`  Herkunft: veröffentlichte Watchlist-Idee (${p.source ?? "extern"}) – kein ausgeführter Trade`] : []),
         `  Verfall: ${formatBerlin(it.expiresAt)}` + (p.timeframe === "1h" ? "" : " oder Invalidierung"),
         `  Bereits erfüllt: ${p.conditions.join("; ")}`,
         `  Noch offen: ${p.pending.join("; ")}`, "");
     }
   }
-  lines.push("Du erhältst eine Einstiegsmail nur, wenn der Auslöser bestätigt und der Kurs frisch geprüft ist. Vorwarnungen lassen sich mit MAIL_PREWARN=false abschalten.");
+  lines.push("Du erhältst eine Einstiegsmail nur, wenn der Auslöser bestätigt, die Markt- und Risikoregeln den Einstieg zulassen und der Kurs frisch geprüft ist; sonst „Nur beobachten“. Vorwarnungen lassen sich mit MAIL_PREWARN=false abschalten.", "", modelNote(items.every((i) => i.prepared.every((p) => p.origin === "idea")) ? "idea" : "model", items[0]?.prepared[0]?.source));
   return { subject: subj, text: lines.join("\n") };
 }
 
@@ -48,6 +68,7 @@ export interface EntryParts {
   symbol: string; setups: SetupId[]; signalTime: number; trigger: number; stop: number;
   check: EntryCheck; size: SizeResult; reasons: string[]; sp: SpContext; qqq: QqqDecision; growth: GrowthResult;
   prepared: Prepared[]; link: string | null; feedUsed: string;
+  regime?: string[]; stance?: string; preparedAt?: number; origin?: "model" | "idea"; source?: string;
 }
 
 export function entryMail(cfg: Config, e: EntryParts): Mail {
@@ -55,7 +76,7 @@ export function entryMail(cfg: Config, e: EntryParts): Mail {
   const lines = [
     modeLine(cfg) + `Signal: ${formatBerlin(e.signalTime)} (${formatNy(e.signalTime)})${tzNote(e.signalTime)}`,
     `Auslöser: ${px(e.trigger)} · Kurs ${px(c.observed!)} USD, Zeitstempel ${formatBerlin(c.quoteTime!)}, geprüft ${formatBerlinTime(c.checkedAt)} (Alter ${Math.round(c.quoteAgeSec!)} s)`,
-    `Stopp: ${px(e.stop)} USD · Abstand ${px(c.observed! - e.stop)} USD je Aktie (1R)`,
+    `Stopp: ${px(e.stop)} USD · Abstand ${px(c.observed! - e.stop)} USD je Aktie (1R)` + (e.prepared.find((p) => p.stopBasis)?.stopBasis ? `\nStopp-Bezug: ${e.prepared.find((p) => p.stopBasis)!.stopBasis}` : ""),
     `Stückzahl: ${e.size.shares} (Einsatz ${money(cfg, e.size.costUsd)}) · geplantes Risiko ${money(cfg, e.size.plannedRiskUsd)} = ${(e.size.plannedRiskUsd / e.size.capitalUsd * 100).toFixed(2)} % des Depots`,
     `Daten: ${e.feedUsed} · Limit-Orders bleiben bei dir; Kurs vor Order erneut prüfen.`, "",
     `Warum interessant: ${names(e.setups)}`,
@@ -65,10 +86,12 @@ export function entryMail(cfg: Config, e: EntryParts): Mail {
   }
   lines.push("• Bestätigung heute: " + e.reasons.join(" | "), "",
     `Ist der Einstieg noch sinnvoll? Der Kurs liegt ${c.chaseR!.toFixed(2)} R über dem Auslöser (Grenze ${cfg.maxChaseR} R). Widerlegt ist die Idee unter ${px(e.stop)}.`, "",
-    `Marktkontext`, e.sp.text, e.qqq.text, e.growth.text, "",
+    ...stagesBlock({ preparedAt: e.preparedAt ?? e.signalTime, triggerAt: e.signalTime, permitted: true, reasons: [e.stance ?? "Marktvorgabe: offen"] }), "",
+    `Marktkontext`, ...(e.regime ?? []), e.sp.text, e.qqq.text, e.growth.text, "",
     `Größenberechnung: ${e.size.limitedBy === "ok" ? "" : `begrenzt durch ${e.size.limitedBy}; `}Risikobudget ${money(cfg, e.size.riskBudgetUsd)}, verfügbar ${money(cfg, e.size.availableUsd)}, offenes Risiko vorher ${money(cfg, e.size.openRiskUsd)}.`,
     cfg.accountCurrency === "EUR" ? `Wechselkurs: 1 EUR = ${cfg.fxUsdPerEur} USD (${cfg.fxSource}, ${cfg.fxDate}) – Orders laufen in USD.` : "Depot- und Handelswährung: USD.", "");
   if (e.link) lines.push(`Gekauft? Kaufkurs und Stückzahl bestätigen (Link öffnet nur ein Formular, nichts wird gespeichert):`, e.link, `Nicht gekauft? Dort „ausgelassen“ wählen.`);
+  lines.push("", modelNote(e.origin, e.source));
   return { subject: `Einstieg bestätigt · ${e.symbol} · ${names(e.setups)}`, text: lines.join("\n") };
 }
 
@@ -89,3 +112,28 @@ export function linkify(text: string): string {
   const esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   return `<pre style="font-family:system-ui,sans-serif;white-space:pre-wrap;font-size:15px;line-height:1.45">${esc.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1">$1</a>')}</pre>`;
 }
+
+export interface WatchParts {
+  symbol: string; setups: SetupId[]; signalTime: number; preparedAt: number; trigger: number; stop: number; currency: string;
+  check: EntryCheck | null; reasons: string[]; regime: string[]; stance: string; qqqText: string; prepared: Prepared[]; origin?: "model" | "idea"; source?: string;
+}
+
+/** „Nur beobachten“: Trigger erreicht, aber Einstieg nach den Markt-/Risikoregeln nicht zulässig. Enthält bewusst keinen Kauf-Link. */
+export function watchMail(cfg: Config, w: WatchParts): Mail {
+  const c = w.check;
+  const lines = [
+    modeLine(cfg) + `NUR BEOBACHTEN – kein Einstieg. Technischer Trigger erreicht, aber Einstieg nicht zulässig.`,
+    `Grund: ${w.reasons.join(" | ")}`,
+    `Signal: ${formatBerlin(w.signalTime)} (${formatNy(w.signalTime)})${tzNote(w.signalTime)} · Modellentscheidung`,
+    `Trigger: ${px(w.trigger)} ${w.currency}` + (c?.observed ? ` · Kurs ${px(c.observed)} ${w.currency}, Zeitstempel ${c.quoteTime ? formatBerlin(c.quoteTime) : "unbekannt"}, geprüft ${formatBerlinTime(c.checkedAt)}` : " · kein frischer Kurs geprüft"),
+    `Geplanter Stopp wäre ${px(w.stop)} ${w.currency}` + (w.prepared.find((p) => p.stopBasis)?.stopBasis ? ` (Stopp-Bezug: ${w.prepared.find((p) => p.stopBasis)!.stopBasis})` : "") + " – keine Stückzahl, kein Kauf-Link, keine Kaufbestätigung.", "",
+    `Warum interessant: ${names(w.setups)}`,
+    ...w.prepared.map((p) => `• ${SETUP_LABEL[p.setup]} – erfüllt: ${p.conditions.join("; ")}`), "",
+    ...stagesBlock({ preparedAt: w.preparedAt, triggerAt: w.signalTime, permitted: false, reasons: w.reasons }), "",
+    "Marktlage (Modellbewertung, kein fester Freigabe-Schwellenwert)", w.stance, ...w.regime, w.qqqText, "",
+    "Das Setup bleibt vorbereitet. Ändert sich deine Marktvorgabe, kann ein späterer Trigger wieder zulässig sein; ein inzwischen davongelaufener Kurs gilt dann als „Einstieg verpasst“.", "",
+    modelNote(w.origin, w.source),
+  ];
+  return { subject: `Nur beobachten · ${w.symbol} · ${names(w.setups)}`, text: lines.join("\n") };
+}
+export { STANCE_LABEL };

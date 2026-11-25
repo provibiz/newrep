@@ -17,7 +17,10 @@ export type SetupId =
   | "ema_crossback"
   | "base_n_break"
   | "base_breakout"
-  | "episodic_pivot";
+  | "episodic_pivot"
+  | "earnings_consolidation"
+  | "multiweek_base"
+  | "ema_reclaim";
 
 export const SETUP_LABEL: Record<SetupId, string> = {
   undercut_rally: "Undercut & Rally",
@@ -27,10 +30,13 @@ export const SETUP_LABEL: Record<SetupId, string> = {
   base_n_break: "Base’n Break",
   base_breakout: "Base Breakout",
   episodic_pivot: "Episodic Pivot",
+  earnings_consolidation: "Konsolidierung nach Quartalszahlen",
+  multiweek_base: "Mehrwöchige Basis",
+  ema_reclaim: "EMA-Reclaim",
 };
 
 /** Setups, die eine Erholung nach Schwäche anzeigen und deshalb vom QQQ-Trendfilter ausgenommen sein dürfen. */
-export const RECOVERY_SETUPS: SetupId[] = ["undercut_rally", "first_higher_low"];
+export const RECOVERY_SETUPS: SetupId[] = ["undercut_rally", "first_higher_low", "ema_reclaim"];
 
 export type Timeframe = "1h" | "1d";
 
@@ -60,6 +66,19 @@ export interface Prepared {
   needsHourClose?: boolean;
   /** Beobachtetes Zusatzwissen (z. B. Katalysator). */
   extra?: Record<string, unknown>;
+  /** Währung der Marken (Trigger/Stopp). Standard USD; ein Kurs in anderer Währung darf nie verglichen werden. */
+  currency?: string;
+  /** model = Modellentscheidung des Bots; idea = veröffentlichte Watchlist-Idee (extern, kein Trade). */
+  origin?: "model" | "idea";
+  source?: string;
+  /** Erst der Tagesschluss bestätigt (kein 5-Minuten-Auslöser). */
+  needsDayClose?: boolean;
+  /** Dieselbe Struktur aktualisiert die bestehende Vorbereitung statt eine neue anzulegen (Level wandern, z. B. EMA). */
+  refresh?: boolean;
+  /** Worauf sich der Stopp bezieht, z. B. „Tagestief vom 2026-11-24 (Inside Day)“. */
+  stopBasis?: string;
+  /** Kontextmarken, die ausdrücklich KEIN Trigger sind (z. B. runde Marken). */
+  contextLevels?: { level: number; label: string }[];
 }
 
 export interface RunningBar {

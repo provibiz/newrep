@@ -19,9 +19,9 @@ const out: string[] = [];
 const say = (s: string) => { console.log(s); out.push(s); };
 const block = (title: string, m: { subject: string; text: string }) => say(`\n### ${title}\n\n**Betreff:** ${m.subject}\n\n\`\`\`\n${m.text}\n\`\`\``);
 
-async function scenario(kind: "normal" | "missed") {
+async function scenario(kind: "normal" | "missed" | "watch") {
   const db = createDb(), sc = buildScenario(), mail = new FakeMail();
-  const d = makeDeps(db, cfgOf({ MODE: "live" }), T.daily, { alpaca: sc.alpaca, mail });
+  const d = makeDeps(db, cfgOf({ MODE: "live", ...(kind === "watch" ? { MARKET_STANCE: "cash", STANCE_NOTE: "Erholungsversuch im Abwärtstrend – Breite und Führung fehlen noch" } : {}) }), T.daily, { alpaca: sc.alpaca, mail });
   const post = (path: string, o: Record<string, string>) => handleRequest(new Request("https://swingpro.example" + path, { method: "POST", body: new URLSearchParams({ confirm: "yes", ...o }) }), d, ENV);
   say(`[TESTDATEN] ${kind}: ${await runDaily(d)}`);
   d.clock.t = T.hourly; say(`[TESTDATEN] Stundenscan: ${await runHourly(d)}`);
@@ -33,6 +33,7 @@ async function scenario(kind: "normal" | "missed") {
   say(`[TESTDATEN] 5-Minuten-Überwachung: ${await runIntraday(d)}`);
   const find = (p: string) => mail.sent.find((m) => m.subject.startsWith(p));
   if (kind === "missed") { block("Einstieg verpasst", find("Einstieg verpasst")!); return; }
+  if (kind === "watch") { block("Nur beobachten (Trigger erreicht, Depot bleibt in Cash)", find("Nur beobachten")!); return; }
   block("Vorwarnung", find("Vorwarnung")!);
   const entry = find("Einstieg bestätigt")!; block("Einstieg bestätigt", entry);
   const tok = entry.text.match(/\/a\/([A-Za-z0-9_-]+)/)![1];
@@ -57,5 +58,6 @@ async function scenario(kind: "normal" | "missed") {
 say("# Beispiel-Mails aus dem Replay (TESTDATEN, erfundene Kurse)\n\nErzeugt mit `npm run replay -- --write docs/BEISPIELMAILS.md`. Adressen und Links sind Platzhalter; Tokens sind nur im Replay gültig.");
 await scenario("normal");
 await scenario("missed");
+await scenario("watch");
 const i = process.argv.indexOf("--write");
 if (i > 0) { writeFileSync(process.argv[i + 1], out.join("\n") + "\n"); console.log("geschrieben:", process.argv[i + 1]); }

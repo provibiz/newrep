@@ -28,4 +28,6 @@ npm run typecheck
 npm run replay      # Replay mit klar gekennzeichneten TESTDATEN
 npm run deploy      # nach ANLEITUNG.md
 ```
+Drei getrennte Entscheidungen: **Setup vorbereitet** → **Trigger erreicht** → **Einstieg zulässig** (sonst „Nur beobachten“). Neue Pfade: Konsolidierung nach Quartalszahlen, mehrwöchige Basis, EMA-Reclaim; Nicht-US-Märkte ohne Datenabdeckung heißen „Markt nicht unterstützt“. Details und Modellannahmen: `REGELN.md`.
+
 Zeiten in Mails: Europe/Berlin (mit Hinweis in den Wochen mit abweichender Sommerzeit), Kursstempel mit Sekunden.

@@ -15,7 +15,7 @@ Schritte mit **(Kosten)** verursachen laufende Kosten; vorher lies `ZUGAENGE.md`
 ```bash
 cd swingpro
 npm install
-npm test            # 84 lokale Tests, kein Netzwerk
+npm test            # 112 lokale Tests, kein Netzwerk
 npm run replay      # Replay mit TESTDATEN, zeigt Beispielmails in der Konsole
 npx wrangler login  # öffnet den Browser, meldet bei Cloudflare an
 ```
@@ -62,6 +62,9 @@ Wrangler zeigt die Adresse `https://swingpro.<dein-subdomain>.workers.dev`. Trag
 2. **„Berechtigungen neu prüfen“** klicken. Die Tabelle zeigt, was kostenlos funktioniert (IEX, SIP-Tageskerzen, FRED) und wofür ein bezahlter Tarif nötig ist (SIP-Echtzeit, FMP-Quartalsdaten). Es wird nie stillschweigend auf einen anderen Feed umgeschaltet.
 3. **„Testmail senden“** klicken. Das ist die erste echte Mail. Die Statusseite zeigt „angenommen“ vom Anbieter; die Zustellzeit im Postfach wird **nicht** gemessen.
 4. **„Tageslauf“** klicken (oder auf den Cron ab 21:00 UTC warten). Die erste Befüllung des Universums kann einige Läufe dauern; der Tageslauf setzt sich selbst fort. Danach zeigt die Statusseite Universum, Ausschlüsse, Datenlücken.
+
+## 7a. Marktvorgabe setzen
+Auf der Statusseite unter „Marktlage“ legst du fest, ob neue Einstiege überhaupt zulässig sind: `offen`, `selektiv` (nur ausgewählte Setups, z. B. First Higher Low) oder `Cash`. Bei `Cash` erhältst du bei erreichtem Trigger „Nur beobachten“-Mails mit Grund, aber keinen Kauf-Link. Das System schlägt keine Marktfreigabe nach festem Schwellenwert vor; es zeigt Breite, Führung, Erholungsversuch und verkürzte Handelstage als Information.
 
 ## 8. Paper-Phase, dann live
 Im Paper-Modus laufen alle Stufen auf echten Daten, Signale landen in der Datenbank (Signalzeit, Kurszeit, Prüfzeit getrennt), Mails werden nur protokolliert (`dry_run`). Beobachte einige Wochen Statusseite und Tagesberichte. Erst dann `MODE=live` setzen und deployen. Der tägliche Bericht kommt auch ohne Signale – bleibt er aus, ist der Dienst ausgefallen.

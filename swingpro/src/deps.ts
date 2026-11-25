@@ -8,7 +8,7 @@ export interface Deps {
   cfg: Config;
   now: () => number;
   alpaca: Pick<Alpaca, "assets" | "clock" | "bars" | "snapshots">;
-  fmp: Pick<Fmp, "income" | "earningsCalendar"> | null;
+  fmp: Pick<Fmp, "income" | "earningsCalendar" | "earningsFor"> | null;
   fred: (from: string, to: string) => Promise<string>;
   sendMail: (m: MailMsg) => Promise<{ id: string }>;
   pepper: string;

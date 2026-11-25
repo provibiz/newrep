@@ -13,6 +13,8 @@ import { runHourly } from "./jobs/hourly";
 import { runIntraday } from "./jobs/intraday";
 import { SETUP_LABEL } from "./types";
 import { lastCompletedSession } from "./calendar";
+import { getStance, setStance, stanceText, STANCE_LABEL } from "./permission";
+import type { Regime } from "./regime";
 
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 const HEAD = { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex", "referrer-policy": "no-referrer", "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'" };
@@ -44,6 +46,11 @@ export async function handleRequest(req: Request, d: Deps, env: { STATUS_TOKEN?:
   if (req.method === "POST" && origin && origin !== url.origin) return new Response("Cross-Site-Anfrage abgelehnt", { status: 403 });
   if (p === "/" || p === "/status") return statusPage(d);
   if (p === "/status.json") return new Response(JSON.stringify(await statusData(d), null, 2), { headers: { "content-type": "application/json", "cache-control": "no-store" } });
+  if (req.method === "POST" && p === "/admin/stance") {
+    const f = await req.formData();
+    try { await setStance(d, String(f.get("stance")) as any, String(f.get("note") ?? "") || null); } catch { return new Response("ungültige Marktvorgabe", { status: 400 }); }
+    return Response.redirect(url.origin + "/status", 303);
+  }
   if (req.method === "POST" && p === "/admin/probe") { await runProbe(d); return Response.redirect(url.origin + "/status", 303); }
   if (req.method === "POST" && p === "/admin/test-mail") {
     await enqueue(d, { id: `test:${d.now()}`, kind: "test", subject: "SwingPro · Testmail", text: `Testmail ${formatBerlin(d.now())}\nWenn du das liest, hat Resend die Mail angenommen. Die Zustellzeit wird nicht gemessen.` });
@@ -67,15 +74,18 @@ export async function statusData(d: Deps) {
   const errors = await all<any>(d.db, "SELECT ts, scope, message FROM errors ORDER BY id DESC LIMIT 15");
   const outbox = await all<any>(d.db, "SELECT state, COUNT(*) n FROM outbox GROUP BY state");
   const lastMail = await all<any>(d.db, "SELECT id, kind, subject, state, created_at, accepted_at, error FROM outbox ORDER BY created_at DESC LIMIT 10");
-  const signals = await all<any>(d.db, "SELECT id, symbol, setups, signal_time, status, status_reason, observed_price, quote_time, checked_at, shares, mode, feed FROM signals ORDER BY signal_time DESC LIMIT 15");
+  const signals = await all<any>(d.db, "SELECT id, symbol, setups, signal_time, status, status_reason, observed_price, quote_time, checked_at, shares, mode, feed, permission, permission_reasons, prepared_at, origin FROM signals ORDER BY signal_time DESC LIMIT 15");
   const prepared = await all<any>(d.db, "SELECT state, COUNT(*) n FROM prepared GROUP BY state");
   const positions = await all<any>(d.db, "SELECT id, symbol, status, entry, shares, shares_sold, stop, needs_review FROM positions WHERE status IN ('pending','open')");
+  const stance = await getStance(d);
+  const regime = await getMeta<Regime>(d.db, "regime");
+  const ideas = await all<any>(d.db, "SELECT symbol, setup, state, state_reason, source, trigger_price FROM prepared WHERE origin='idea' ORDER BY created_at DESC LIMIT 10");
   const lastBar = await one<{ m: number }>(d.db, "SELECT MAX(last_end) m FROM series WHERE tf='1h'");
   return {
     now, mode: d.cfg.mode, feed: d.cfg.feed, dailyFeed: d.cfg.dailyFeed, lastCompletedSession: lastCompletedSession(now, 20),
     lastOk: { hourly, intraday, daily },
     dataAgeMin: lastBar?.m ? Math.round((now - lastBar.m) / MIN) : null,
-    universe, probe, runs, errors, outbox, lastMail, signals, prepared, positions,
+    universe, probe, runs, errors, outbox, lastMail, signals, prepared, positions, regime, stance, stanceText: stanceText(d.cfg, stance), ideas,
     note: "accepted_at = Annahme durch Resend; die Zustellung im Postfach wird nicht gemessen.",
   };
 }
@@ -100,6 +110,11 @@ async function statusPage(d: Deps): Promise<Response> {
 <h2>Mails (${s.outbox.map((o: any) => `${o.n}× ${o.state}`).join(", ") || "keine"})</h2><table>${s.lastMail.map((m: any) => `<tr><td>${t(m.created_at)}</td><td>${esc(m.kind)}</td><td>${esc(m.subject)}</td><td>${esc(m.state)}${m.accepted_at ? ` (angenommen ${t(m.accepted_at)})` : ""}${m.error ? " – " + esc(m.error) : ""}</td></tr>`).join("")}</table>
 <form method="post" action="/admin/test-mail"><button class="sec">Testmail senden</button></form>
 <h2>Läufe von Hand anstoßen</h2><form method="post" action="/admin/run/daily"><button class="sec">Tageslauf</button></form><form method="post" action="/admin/run/hourly"><button class="sec">Stundenscan</button></form><form method="post" action="/admin/run/intraday"><button class="sec">5-Minuten-Überwachung</button></form>
+<h2>Marktlage (Modellbewertung, kein fester Freigabe-Schwellenwert)</h2>${s.regime ? `<p>${s.regime.text.map(esc).join("<br>")}</p>` : "<p>Noch nicht bewertet.</p>"}
+<p><b>${esc(s.stanceText)}</b></p>
+<form method="post" action="/admin/stance"><label>Marktvorgabe</label><select name="stance">${(["open", "selective", "cash"] as const).map((k) => `<option value="${k}"${s.stance.stance === k ? " selected" : ""}>${esc(STANCE_LABEL[k])}</option>`).join("")}</select><label>Begründung (Notiz)</label><input name="note" value="${esc(s.stance.note ?? "")}"><button>Marktvorgabe speichern</button></form>
+<h2>Ideen von außen</h2>${s.ideas.map((i: any) => `<p>${esc(i.symbol)} · ${esc(SETUP_LABEL[i.setup as keyof typeof SETUP_LABEL])} · Trigger ${i.trigger_price} · <b>${esc(i.state === "unsupported" ? "Markt nicht unterstützt" : i.state)}</b>${i.state_reason ? " – " + esc(i.state_reason) : ""}<br><small>Quelle: ${esc(i.source)} – keine Bot-Entscheidung, kein Trade</small></p>`).join("") || "<p>keine</p>"}
+<h2>Signale – drei getrennte Entscheidungen</h2><table><tr><th>1 vorbereitet</th><th>2 Trigger erreicht</th><th>3 Einstieg zulässig</th><th>Symbol · Setup</th></tr>${s.signals.map((x: any) => `<tr><td>${t(x.prepared_at)}</td><td>${t(x.signal_time)}</td><td>${esc(x.permission === "permitted" ? "ja" : x.permission === "watch_only" ? "NEIN – nur beobachten: " + (JSON.parse(x.permission_reasons ?? "[]")[0] ?? "") : x.status)}</td><td>${esc(x.symbol)} · ${esc(JSON.parse(x.setups).map((k: keyof typeof SETUP_LABEL) => SETUP_LABEL[k]).join(" + "))}<br><small>${x.origin === "idea" ? "externe Idee" : "Modellentscheidung"}</small></td></tr>`).join("") || "<tr><td>keine</td></tr>"}</table>
 <h2>Signale</h2><table>${s.signals.map((x: any) => `<tr><td>${t(x.signal_time)}</td><td>${esc(x.symbol)}</td><td>${esc(JSON.parse(x.setups).map((k: keyof typeof SETUP_LABEL) => SETUP_LABEL[k]).join(" + "))}</td><td>${esc(x.status)}</td><td>${x.observed_price ?? ""}</td></tr>`).join("") || "<tr><td>keine</td></tr>"}</table>
 <p>Vorbereitete Setups: ${s.prepared.map((p: any) => `${p.n}× ${p.state}`).join(", ") || "keine"}</p>
 <h2>Positionen</h2>${s.positions.map((p: any) => `<p>${esc(p.symbol)} · ${esc(p.status)} · Stopp ${p.stop ?? "–"}${p.needs_review ? " · <b class=bad>Split/Anpassung prüfen</b>" : ""}</p>`).join("") || "<p>keine offenen</p>"}

@@ -1,7 +1,7 @@
 /** Einstiegsprüfung mit frischem Kurs: bestätigt, verpasst oder nicht prüfbar. */
 import type { Config } from "./config";
 
-export type EntryStatus = "confirmed" | "missed" | "stale_quote" | "no_quote" | "below_trigger" | "invalid_stop";
+export type EntryStatus = "confirmed" | "missed" | "stale_quote" | "no_quote" | "below_trigger" | "invalid_stop" | "currency_mismatch";
 
 export interface EntryCheck {
   status: EntryStatus;
@@ -13,11 +13,14 @@ export interface EntryCheck {
   reason: string;
 }
 
-export interface Quote { price: number; time: number; kind: "ask" | "last" }
+export interface Quote { price: number; time: number; kind: "ask" | "last"; currency?: string }
 
-export function checkEntry(cfg: Config, trigger: number, stop: number, quote: Quote | null, checkedAt: number): EntryCheck {
+export function checkEntry(cfg: Config, trigger: number, stop: number, quote: Quote | null, checkedAt: number, triggerCurrency = "USD"): EntryCheck {
   const base = { observed: quote?.price ?? null, quoteTime: quote?.time ?? null, checkedAt, quoteAgeSec: null as number | null, chaseR: null as number | null };
   if (!quote || !(quote.price > 0) || !Number.isFinite(quote.time)) return { ...base, status: "no_quote", reason: "Keine Kursbestätigung verfügbar – kein Einstieg ausgelöst" };
+  if ((quote.currency ?? "USD") !== triggerCurrency) {
+    return { ...base, status: "currency_mismatch", reason: `Kurs in ${quote.currency ?? "USD"}, Trigger in ${triggerCurrency}: kein Ersatzkurs aus einem anderen Markt erlaubt` };
+  }
   const age = (checkedAt - quote.time) / 1000;
   base.quoteAgeSec = age;
   if (age > cfg.maxQuoteAgeSec || age < -30) {
